@@ -11,6 +11,7 @@ export const TRIALS: TrialInfo[] = [
     renewalCost: 24.99,
     accent: '#4f46e5',
     tagline: 'Visual misdirection & triple-negative checkboxes',
+    bossTitle: 'BOSS 1/5 • THE GUILT-TRIP MODAL',
   },
   {
     id: 1,
@@ -20,6 +21,7 @@ export const TRIALS: TrialInfo[] = [
     renewalCost: 19.99,
     accent: '#0284c7',
     tagline: 'Hydra cookie modals & Chad from Customer Success',
+    bossTitle: 'BOSS 2/5 • THE 428-PARTNER HYDRA',
   },
   {
     id: 2,
@@ -29,6 +31,7 @@ export const TRIALS: TrialInfo[] = [
     renewalCost: 39.0,
     accent: '#e11d48',
     tagline: 'Cursor-repelling buttons & emotional manipulation',
+    bossTitle: 'BOSS 3/5 • PULSEY THE CRYING KETTLEBELL',
   },
   {
     id: 3,
@@ -38,6 +41,7 @@ export const TRIALS: TrialInfo[] = [
     renewalCost: 29.5,
     accent: '#0d9488',
     tagline: 'Corporate buzzword captcha & ice-physics verification',
+    bossTitle: 'BOSS 4/5 • CORPORATE CAPTCHA SHIELD',
   },
   {
     id: 4,
@@ -47,5 +51,6 @@ export const TRIALS: TrialInfo[] = [
     renewalCost: 99.0,
     accent: '#d97706',
     tagline: 'ToS clause landmines, fake session timeout & retention override',
+    bossTitle: 'FINAL BOSS 5/5 • VP OF RETENTION',
   },
 ];

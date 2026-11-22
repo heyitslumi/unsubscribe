@@ -4,6 +4,8 @@
   --font-display: "Bricolage Grotesque", sans-serif;
   --font-sans: "Plus Jakarta Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   color-scheme: dark;
 }
 
@@ -16,7 +18,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: #0b0c10;
+  background: #07090f;
   color: #f4f4f6;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -36,6 +38,46 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Emil-design-eng responsive button press */
+button:not(:disabled) {
+  transition: transform 150ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* 3:14 AM Panic OS Desktop Wallpaper */
+.desktop-wallpaper {
+  background-color: #070910;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(225, 29, 72, 0.19), transparent 40%),
+    radial-gradient(circle at 86% 22%, rgba(79, 70, 229, 0.21), transparent 44%),
+    radial-gradient(circle at 52% 88%, rgba(14, 165, 233, 0.14), transparent 46%),
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+}
+
+.hazard-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(245, 158, 11, 0.18),
+    rgba(245, 158, 11, 0.18) 10px,
+    rgba(15, 23, 42, 0.65) 10px,
+    rgba(15, 23, 42, 0.65) 20px
+  );
+}
+
+.scanlines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.018) 3px
+  );
+}
+
 /* Custom themed scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
@@ -43,7 +85,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.14);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -52,7 +94,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: rgba(100, 116, 139, 0.72);
 }
 
 @keyframes shake {
@@ -64,7 +106,7 @@ body {
 }
 
 .animate-shake {
-  animation: shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  animation: shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 @keyframes float-up {
@@ -74,22 +116,22 @@ body {
   }
   100% {
     opacity: 0;
-    transform: translateY(-34px) scale(1.06);
+    transform: translateY(-42px) scale(1.12);
   }
 }
 
 .animate-float-up {
-  animation: float-up 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: float-up 0.9s var(--ease-out) forwards;
 }
 
 @keyframes stamp-in {
   0% {
     opacity: 0;
-    transform: scale(1.7) rotate(-14deg);
+    transform: scale(1.85) rotate(-15deg);
   }
   70% {
     opacity: 1;
-    transform: scale(0.94) rotate(-6deg);
+    transform: scale(0.93) rotate(-5deg);
   }
   100% {
     opacity: 1;
@@ -98,5 +140,55 @@ body {
 }
 
 .animate-stamp {
-  animation: stamp-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: stamp-in 0.3s var(--ease-back) forwards;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.22s var(--ease-out) forwards;
+}
+
+@keyframes bait-sheen {
+  0% { transform: translateX(-140%) skewX(-20deg); }
+  55%, 100% { transform: translateX(240%) skewX(-20deg); }
+}
+
+.bait-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.bait-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  animation: bait-sheen 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes particle-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0.55) rotate(var(--rot));
+  }
+}
+
+.animate-particle {
+  animation: particle-burst 0.72s var(--ease-out) forwards;
 }

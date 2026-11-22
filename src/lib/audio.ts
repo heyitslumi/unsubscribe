@@ -5,7 +5,9 @@ class SoundEngine {
   private ensure(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const Ctor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return null;
       this.ctx = new Ctor();
     }
@@ -13,6 +15,10 @@ class SoundEngine {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  private jitter(baseFreq: number, pct = 0.045): number {
+    return baseFreq * (1 + (Math.random() * 2 - 1) * pct);
   }
 
   private tone(
@@ -43,44 +49,48 @@ class SoundEngine {
   }
 
   playClick() {
-    this.tone(520, 0.045, 'triangle', 0.08, 0, 320);
+    this.tone(this.jitter(540), 0.042, 'triangle', 0.08, 0, 320);
+  }
+
+  playUrgentTick() {
+    this.tone(this.jitter(880, 0.02), 0.038, 'sine', 0.045, 0, 660);
   }
 
   playScam() {
     // Evil cash-register cha-ching + low corporate buzz
-    this.tone(987.77, 0.08, 'square', 0.09, 0);
-    this.tone(1318.5, 0.18, 'square', 0.1, 0.065);
-    this.tone(155, 0.24, 'sawtooth', 0.09, 0.08, 110);
+    this.tone(this.jitter(987.77, 0.02), 0.075, 'square', 0.095, 0);
+    this.tone(this.jitter(1318.5, 0.02), 0.17, 'square', 0.105, 0.06);
+    this.tone(148, 0.25, 'sawtooth', 0.1, 0.08, 92);
   }
 
   playDodge() {
-    this.tone(360, 0.09, 'sine', 0.07, 0, 740);
+    this.tone(this.jitter(370, 0.08), 0.085, 'sine', 0.075, 0, this.jitter(780, 0.08));
   }
 
   playSplit() {
-    this.tone(290, 0.07, 'triangle', 0.09, 0, 540);
-    this.tone(430, 0.09, 'triangle', 0.08, 0.05, 680);
+    this.tone(this.jitter(290), 0.07, 'triangle', 0.09, 0, 540);
+    this.tone(this.jitter(440), 0.09, 'triangle', 0.085, 0.05, 700);
   }
 
   playStageClear() {
-    // Rubber-stamp thud + crisp ascending triad
-    this.tone(120, 0.09, 'triangle', 0.16, 0, 58);
-    this.tone(523.25, 0.11, 'triangle', 0.11, 0.05);
-    this.tone(659.25, 0.11, 'triangle', 0.11, 0.12);
-    this.tone(783.99, 0.22, 'triangle', 0.13, 0.19);
+    // Heavy rubber-stamp thud + crisp ascending triad
+    this.tone(115, 0.1, 'triangle', 0.19, 0, 48);
+    this.tone(523.25, 0.11, 'triangle', 0.11, 0.045);
+    this.tone(659.25, 0.11, 'triangle', 0.115, 0.115);
+    this.tone(783.99, 0.22, 'triangle', 0.135, 0.185);
   }
 
   playVictory() {
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((n, idx) => {
-      this.tone(n, 0.22, 'triangle', 0.12, idx * 0.085);
+      this.tone(n, 0.24, 'triangle', 0.125, idx * 0.085);
     });
   }
 
   playFail() {
     const notes = [392, 349.23, 311.13, 233.08];
     notes.forEach((n, idx) => {
-      this.tone(n, 0.24, 'sawtooth', 0.08, idx * 0.11);
+      this.tone(n, 0.25, 'sawtooth', 0.085, idx * 0.11);
     });
   }
 }

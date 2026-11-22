@@ -8,6 +8,7 @@ export interface TrialInfo {
   renewalCost: number;
   accent: string;
   tagline: string;
+  bossTitle: string;
 }
 
 export interface ChargeEntry {
@@ -23,4 +24,15 @@ export interface ToastItem {
   kind: 'scam' | 'clear' | 'hint' | 'achievement';
   title: string;
   detail: string;
+}
+
+export interface BurstParticle {
+  id: string;
+  x: number;
+  y: number;
+  tx: string;
+  ty: string;
+  rot: string;
+  text: string;
+  color: string;
 }
