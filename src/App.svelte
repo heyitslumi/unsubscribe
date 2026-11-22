@@ -1220,7 +1220,7 @@
     {#if windows.terminal.open && !windows.terminal.minimized}
       <div
         style="z-index: {windows.terminal.z}; transform: translate({windows.terminal.x}px, {windows.terminal.y}px);"
-        class="fixed bottom-16 left-4 sm:left-16 w-[340px] sm:w-[420px] rounded-xl border-2 border-emerald-500/70 bg-slate-950/95 shadow-[0_25px_70px_rgba(0,0,0,0.85)] overflow-hidden"
+        class="fixed bottom-16 left-2 sm:left-3 w-[320px] sm:w-[350px] rounded-xl border-2 border-emerald-500/80 bg-[#06080e] shadow-[0_25px_70px_rgba(0,0,0,0.92)] overflow-hidden"
       >
         <div
           role="toolbar"
