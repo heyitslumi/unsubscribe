@@ -20,6 +20,7 @@
     BatteryWarning,
     StickyNote,
     BellRing,
+    Eye,
   } from '@lucide/svelte';
   import { INITIAL_TIME_SEC, TRIALS } from './lib/trials';
   import type { BurstParticle, ChargeEntry, GamePhase, ToastItem } from './lib/types';
@@ -44,6 +45,9 @@
   let floatingBill = $state<string | null>(null);
   let clearBanner = $state<string | null>(null);
 
+  // Progressive disclosure for 3AM Sticky Note hints (unmasked on click or after a trap misclick)
+  let hintRevealedForStage = $state<Record<number, boolean>>({});
+
   // Trauma-based camera shake & hitstop (from game-feel skill)
   let trauma = $state(0);
   let shakeOffset = $state({ x: 0, y: 0, rot: 0 });
@@ -51,18 +55,37 @@
   let lastTickSecond = $state(999);
 
   const currentTrial = $derived(TRIALS[stageIdx] ?? TRIALS[0]);
-  const totalWasted = $derived(charges.reduce((sum, c) => sum + c.amount, 0));
+  const scamCharges = $derived(charges.filter((c) => c.kind === 'scam'));
+  const totalWasted = $derived(scamCharges.reduce((sum, c) => sum + c.amount, 0));
   const totalSaved = $derived(
     TRIALS.filter((t) => clearedStages.includes(t.id)).reduce((sum, t) => sum + t.renewalCost, 0)
   );
   const timerPct = $derived(Math.max(0, Math.min(100, (timeLeft / INITIAL_TIME_SEC) * 100)));
+  const currentHintRevealed = $derived(Boolean(hintRevealedForStage[stageIdx]));
+
+  const stageHintText = $derived.by(() => {
+    if (stageIdx === 0) {
+      return 'CloudNote+ hides the exit link in the gray footer. On the survey, uncheck Boxes #1 and #2 and check Box #3.';
+    }
+    if (stageIdx === 1) {
+      return 'Skip the × button! Open Granular Interest, turn all 3 switches OFF (Switch #2 relights #1!), then drag or minimize Chad.';
+    }
+    if (stageIdx === 2) {
+      return 'Chase the cancel button 5 times to exhaust its stamina — or press Tab + Enter for an instant accessibility speedrun!';
+    }
+    if (stageIdx === 3) {
+      return 'Pick the 3 genuine human needs (8 Hours of Sleep, Transparent Pricing, Working Cancel Button), then press SPACE in the green zone.';
+    }
+    return 'Scroll the ToS to uncheck all 3 camouflaged $15 clauses, dismiss the fake timeout link, and watch the A/B button swap when typing UNSUBSCRIBE!';
+  });
 
   const rankInfo = $derived.by(() => {
     if (phase === 'timeout') {
       return {
         grade: 'F',
         title: 'VC EXIT LIQUIDITY',
-        color: 'text-rose-400 border-rose-500/50 bg-rose-500/10',
+        color: 'text-rose-300 border-rose-500/60 bg-rose-950/60',
+        stampColor: 'border-rose-700 text-rose-700',
         blurb: 'The clock hit 00:00 and every remaining free trial auto-renewed on your card.',
       };
     }
@@ -70,7 +93,8 @@
       return {
         grade: 'S+',
         title: 'DARK-PATTERN EXORCIST',
-        color: 'text-emerald-300 border-emerald-400/60 bg-emerald-500/15',
+        color: 'text-emerald-200 border-emerald-400/60 bg-emerald-950/60',
+        stampColor: 'border-emerald-700 text-emerald-800',
         blurb: '$0.00 wasted with time to spare. SaaS growth hackers tell campfire horror stories about you.',
       };
     }
@@ -78,7 +102,8 @@
       return {
         grade: 'S',
         title: 'IMMUNE TO MARKETING',
-        color: 'text-emerald-300 border-emerald-400/50 bg-emerald-500/10',
+        color: 'text-emerald-200 border-emerald-400/50 bg-emerald-950/50',
+        stampColor: 'border-emerald-700 text-emerald-800',
         blurb: 'Not a single cent surrendered to dark patterns.',
       };
     }
@@ -86,7 +111,8 @@
       return {
         grade: 'A',
         title: 'MOSTLY UNSCAMMED',
-        color: 'text-sky-300 border-sky-400/50 bg-sky-500/10',
+        color: 'text-sky-200 border-sky-400/50 bg-sky-950/50',
+        stampColor: 'border-sky-700 text-sky-800',
         blurb: 'You escaped all 5 trials with only minor psychological and financial bruising.',
       };
     }
@@ -94,14 +120,16 @@
       return {
         grade: 'B',
         title: 'VALUED Q4 REVENUE',
-        color: 'text-amber-300 border-amber-400/50 bg-amber-500/10',
+        color: 'text-amber-200 border-amber-400/50 bg-amber-950/50',
+        stampColor: 'border-amber-700 text-amber-800',
         blurb: 'You cancelled eventually, right after funding the CEO’s espresso machine.',
       };
     }
     return {
       grade: 'C',
       title: 'CLICKER OF SHINY BUTTONS',
-      color: 'text-orange-300 border-orange-400/50 bg-orange-500/10',
+      color: 'text-orange-200 border-orange-400/50 bg-orange-950/50',
+      stampColor: 'border-orange-700 text-orange-800',
       blurb: 'Every green button was pressed. Your bank called to ask if you are okay.',
     };
   });
@@ -141,7 +169,7 @@
     }, 740);
   }
 
-  // Main countdown + real-time trauma shake loop (game-feel pattern: shake decays in real time, timer respects hitstop)
+  // Main countdown + real-time trauma shake loop
   $effect(() => {
     let last = performance.now();
     let raf = 0;
@@ -151,7 +179,6 @@
       const realDt = Math.min(0.05, (now - last) / 1000);
       last = now;
 
-      // 1. Real-time trauma decay (summed sines at unrelated frequencies, never static random buzz)
       if (trauma > 0) {
         trauma = Math.max(0, trauma - 1.85 * realDt);
         const shake = trauma * trauma;
@@ -165,7 +192,6 @@
         shakeOffset = { x: 0, y: 0, rot: 0 };
       }
 
-      // 2. Game timer (paused briefly during hit-stop impacts)
       if (phase === 'playing' && now >= hitStopUntil) {
         const next = Math.max(0, timeLeft - realDt);
         timeLeft = next;
@@ -194,7 +220,7 @@
     toasts = [...toasts.slice(-2), { id, kind, title, detail }];
     setTimeout(() => {
       toasts = toasts.filter((t) => t.id !== id);
-    }, 2900);
+    }, 2400);
   }
 
   function startGame() {
@@ -207,16 +233,23 @@
     bonusNotes = [];
     toasts = [];
     particles = [];
+    hintRevealedForStage = {};
     copied = false;
     clearBanner = null;
     phase = 'playing';
   }
 
+  function revealCurrentHint() {
+    sfx.playClick();
+    hintRevealedForStage = { ...hintRevealedForStage, [stageIdx]: true };
+  }
+
   function triggerTimeout() {
     sfx.playFail();
     addTrauma(0.95);
-    const uncancelled = TRIALS.filter((t) => !clearedStages.includes(t.id)).map((t) => ({
+    const uncancelled: ChargeEntry[] = TRIALS.filter((t) => !clearedStages.includes(t.id)).map((t) => ({
       id: `renew-${t.id}`,
+      kind: 'scam',
       stageBrand: t.brand,
       label: `${t.brand} Auto-Renewal Triggered`,
       amount: t.renewalCost,
@@ -231,10 +264,14 @@
     triggerHitStop(55);
     spawnParticles('scam', `+$${amount.toFixed(2)}`);
 
+    // Automatically reveal the 3AM sticky note hint when a player hits a trap
+    hintRevealedForStage = { ...hintRevealedForStage, [stageIdx]: true };
+
     charges = [
       ...charges,
       {
         id: `${Date.now()}-${Math.random()}`,
+        kind: 'scam',
         stageBrand: currentTrial.brand,
         label,
         amount,
@@ -252,28 +289,39 @@
 
   function handleStageClear(note?: string) {
     sfx.playStageClear();
-    addTrauma(0.5);
-    triggerHitStop(75);
+    addTrauma(0.45);
+    triggerHitStop(70);
     spawnParticles('clear', `-$${currentTrial.renewalCost.toFixed(2)}/mo`);
 
     clearedStages = [...clearedStages, currentTrial.id];
-    clearBanner = `${currentTrial.brand.toUpperCase()} TERMINATED!`;
+    charges = [
+      ...charges,
+      {
+        id: `saved-${currentTrial.id}-${Date.now()}`,
+        kind: 'saved',
+        stageBrand: currentTrial.brand,
+        label: `${currentTrial.brand} Auto-Debit Blocked`,
+        amount: currentTrial.renewalCost,
+      },
+    ];
+
+    clearBanner = `${currentTrial.brand.toUpperCase()} TERMINATED`;
     setTimeout(() => {
       clearBanner = null;
-    }, 820);
+    }, 750);
 
     if (note) {
       bonusNotes = [...bonusNotes, note];
       pushToast('achievement', 'STYLE BONUS!', note);
     } else {
-      pushToast('clear', `${currentTrial.brand} Cancelled!`, `$${currentTrial.renewalCost.toFixed(2)}/mo saved`);
+      pushToast('clear', `${currentTrial.brand} Cancelled`, `$${currentTrial.renewalCost.toFixed(2)}/mo dodged`);
     }
 
     if (stageIdx + 1 >= TRIALS.length) {
       setTimeout(() => {
         sfx.playVictory();
         phase = 'victory';
-      }, 340);
+      }, 280);
     } else {
       stageIdx += 1;
     }
@@ -293,6 +341,25 @@
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${tenths}`;
   }
 
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (phase === 'intro' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      startGame();
+    } else if ((e.key === 'r' || e.key === 'R') && phase !== 'intro') {
+      e.preventDefault();
+      startGame();
+    } else if (e.key === 'm' || e.key === 'M') {
+      e.preventDefault();
+      toggleMute();
+    } else if ((e.key === 'h' || e.key === 'H') && phase === 'playing') {
+      e.preventDefault();
+      revealCurrentHint();
+    }
+  }
+
   async function copyReceipt() {
     sfx.playClick();
     const statusLine =
@@ -305,7 +372,7 @@
       `Status: ${statusLine}`,
       `Dark-Pattern Damage: $${totalWasted.toFixed(2)}`,
       `Monthly Charges Dodged: $${totalSaved.toFixed(2)}/mo`,
-      `Traps Triggered: ${charges.length}`,
+      `Traps Triggered: ${scamCharges.length}`,
       bonusNotes.length ? `Style Bonus: ${bonusNotes.join(', ')}` : '',
     ]
       .filter(Boolean)
@@ -321,23 +388,25 @@
   }
 </script>
 
+<svelte:window onkeydown={handleGlobalKeydown} />
+
 <!-- 3:14 AM Panic OS Desktop Shell -->
 <div class="min-h-screen w-full desktop-wallpaper text-slate-100 flex flex-col justify-between overflow-x-hidden">
   <!-- Top OS Status & Arcade Threat Bar -->
-  <header class="w-full bg-slate-950/90 border-b border-slate-800/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between gap-3 z-30">
+  <header class="w-full bg-slate-950/95 border-b border-slate-800 px-3 sm:px-6 py-1.5 flex items-center justify-between gap-3 z-30">
     <div class="flex items-center gap-2.5">
-      <span class="px-2 py-0.5 rounded bg-rose-600 text-white font-display font-extrabold text-xs tracking-tight">
+      <span class="px-2.5 py-1 rounded bg-rose-700 text-white font-display font-extrabold text-xs tracking-tight">
         UNSUBSCRIBE OS
       </span>
-      <span class="hidden md:inline text-xs text-slate-400 font-mono-num">
+      <span class="hidden md:inline text-xs text-slate-300 font-mono-num">
         session: 03:14:09_AM • virtual-card •••• 4049
       </span>
     </div>
 
     <!-- Full-Width Arcade Countdown Meter -->
     <div class="flex-1 max-w-md mx-2 hidden sm:flex items-center gap-2.5">
-      <span class="text-[11px] font-mono-num uppercase text-slate-400 shrink-0">AUTO-RENEW</span>
-      <div class="flex-1 h-2.5 bg-slate-900 rounded-full border border-slate-800 overflow-hidden p-0.5">
+      <span class="text-xs font-mono-num uppercase text-slate-300 shrink-0">AUTO-RENEW</span>
+      <div class="flex-1 h-2.5 bg-slate-900 rounded-full border border-slate-700 overflow-hidden p-0.5">
         <div
           class="h-full rounded-full transition-colors duration-200 {timeLeft <= 15
             ? 'bg-rose-500'
@@ -349,39 +418,53 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-3 text-xs font-mono-num text-slate-300">
-      <div class="hidden sm:flex items-center gap-1.5 text-amber-400">
-        <BatteryWarning class="w-3.5 h-3.5" />
+    <div class="flex items-center gap-2 sm:gap-3 text-xs font-mono-num text-slate-200">
+      <div class="hidden sm:flex items-center gap-1.5 text-amber-300">
+        <BatteryWarning class="w-4 h-4" />
         <span>4%</span>
       </div>
-      <div class="hidden sm:flex items-center gap-1 text-emerald-400">
-        <Wifi class="w-3.5 h-3.5" />
+      <div class="hidden sm:flex items-center gap-1 text-emerald-300">
+        <Wifi class="w-4 h-4" />
         <span>5G</span>
       </div>
+
+      {#if phase !== 'intro'}
+        <button
+          type="button"
+          onclick={startGame}
+          title="Quick Restart Run (Hotkey: R)"
+          class="min-h-[44px] px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono-num font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <RotateCcw class="w-3.5 h-3.5" />
+          <span>Restart (R)</span>
+        </button>
+      {/if}
+
       <button
         type="button"
         onclick={toggleMute}
         aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-        class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer flex items-center gap-1"
+        title="Toggle Audio (Hotkey: M)"
+        class="min-w-[44px] min-h-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer flex items-center justify-center"
       >
         {#if muted}
-          <VolumeX class="w-3.5 h-3.5 text-rose-400" />
+          <VolumeX class="w-4 h-4 text-rose-400" />
         {:else}
-          <Volume2 class="w-3.5 h-3.5 text-emerald-400" />
+          <Volume2 class="w-4 h-4 text-emerald-400" />
         {/if}
       </button>
     </div>
   </header>
 
   <!-- Main Desktop Workspace (Browser + Live Bank Sidecar) -->
-  <div class="flex-1 w-full max-w-[1380px] mx-auto px-2.5 sm:px-5 py-3 sm:py-4 flex flex-col lg:flex-row items-stretch gap-4">
+  <div class="flex-1 w-full max-w-[1380px] mx-auto px-2.5 sm:px-5 py-2.5 sm:py-4 flex flex-col lg:flex-row items-stretch gap-4">
     <!-- Left/Main: Hostile SaaS Browser Window -->
     <div
       style="transform: translate3d({shakeOffset.x}px, {shakeOffset.y}px, 0) rotate({shakeOffset.rot}deg);"
-      class="flex-1 min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.75)] overflow-hidden flex flex-col relative"
+      class="flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden flex flex-col relative"
     >
-      <!-- Browser Tab Strip -->
-      <div class="bg-[#11141d] border-b border-slate-800 px-3 pt-2.5 flex items-center gap-1.5 overflow-x-auto">
+      <!-- Browser Tab Strip (hidden scrollbar + WCAG contrast) -->
+      <div class="no-scrollbar bg-[#11141d] border-b border-slate-800 px-3 pt-2 flex items-center gap-1.5 overflow-x-auto">
         <div class="flex items-center gap-1.5 pr-2 shrink-0" aria-hidden="true">
           <span class="w-3 h-3 rounded-full bg-rose-500"></span>
           <span class="w-3 h-3 rounded-full bg-amber-400"></span>
@@ -392,40 +475,41 @@
           {@const isDone = clearedStages.includes(t.id)}
           {@const isActive = phase === 'playing' && stageIdx === t.id}
           <div
-            class="px-3 py-1.5 rounded-t-xl text-xs flex items-center gap-2 shrink-0 border-t border-x transition-colors {isActive
+            class="px-3 py-1.5 rounded-t-lg text-xs flex items-center gap-2 shrink-0 border-t border-x transition-colors {isActive
               ? 'bg-slate-800 border-slate-600 text-white font-bold'
               : isDone
-                ? 'bg-emerald-950/30 border-emerald-800/40 text-emerald-400 line-through'
-                : 'bg-slate-900/50 border-transparent text-slate-500'}"
+                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300 line-through'
+                : 'bg-slate-900/70 border-transparent text-slate-300'}"
           >
             <span
               class="w-2 h-2 rounded-full shrink-0"
               style="background: {isDone ? '#10b981' : t.accent};"
             ></span>
-            <span class="font-mono-num text-[10px] opacity-65">{idx + 1}/5</span>
+            <span class="font-mono-num text-xs text-slate-300">{idx + 1}/5</span>
             <span class="max-w-[115px] truncate">{t.brand}</span>
           </div>
         {/each}
       </div>
 
       <!-- Browser URL Bar + Boss Encounter Sub-Banner -->
-      <div class="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2">
+      <div class="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-1.5 flex flex-wrap items-center gap-2">
         <button
           type="button"
           title="Reload page"
+          aria-label="Reload simulated browser page"
           onclick={() => {
             if (phase === 'playing') {
-              pushToast('hint', 'Nice try!', 'Refreshing only makes our tracking pixels stronger.');
+              pushToast('hint', 'Tracking Pixels Intensified', 'Use Restart (R) in the top bar if you want a fresh run.');
             }
           }}
-          class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+          class="min-w-[44px] min-h-[44px] rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer"
         >
-          <RotateCw class="w-3.5 h-3.5" />
+          <RotateCw class="w-4 h-4" />
         </button>
 
-        <div class="flex-1 min-w-[180px] bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center gap-2 text-xs">
+        <div class="flex-1 min-w-[170px] bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 flex items-center gap-2 text-xs">
           <Lock class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span class="font-mono-num text-slate-300 truncate">
+          <span class="font-mono-num text-slate-200 truncate">
             {#if phase === 'intro'}
               about://3am-free-trial-regret
             {:else if phase === 'playing'}
@@ -437,32 +521,50 @@
         </div>
 
         {#if phase === 'playing'}
-          <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono-num text-[11px] font-bold">
+          <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-200 font-mono-num text-xs font-bold">
             <Zap class="w-3.5 h-3.5" />
             <span>{currentTrial.bossTitle}</span>
           </div>
         {/if}
 
-        <!-- Compact Mobile HUD Pills (always visible on small screens) -->
-        <div class="flex lg:hidden items-center gap-2 ml-auto">
+        <!-- Compact Mobile HUD Pills + Mobile Hint Button (always visible on <1024px) -->
+        <div class="flex lg:hidden items-center gap-1.5 ml-auto">
           <div
-            class="px-2.5 py-1 rounded-lg border font-mono-num text-xs font-bold flex items-center gap-1 {timeLeft <= 15 &&
+            class="px-2.5 py-1.5 rounded-lg border font-mono-num text-xs font-bold flex items-center gap-1 {timeLeft <= 15 &&
             phase === 'playing'
-              ? 'bg-rose-950 border-rose-500 text-rose-300'
+              ? 'bg-rose-950 border-rose-500 text-rose-200'
               : 'bg-slate-950 border-slate-800 text-slate-200'}"
           >
             <Clock class="w-3.5 h-3.5" />
             <span>{formatClock(timeLeft)}</span>
           </div>
-          <div class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 font-mono-num text-xs font-bold text-rose-400">
+          <div class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 font-mono-num text-xs font-bold text-rose-300">
             ${totalWasted.toFixed(2)}
           </div>
+          {#if phase === 'playing'}
+            <button
+              type="button"
+              onclick={revealCurrentHint}
+              class="min-h-[44px] px-2.5 py-1.5 rounded-lg bg-amber-300 text-slate-950 font-display font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+            >
+              <StickyNote class="w-3.5 h-3.5" />
+              <span>Hint</span>
+            </button>
+          {/if}
         </div>
       </div>
 
+      <!-- Mobile Sticky Note Banner when revealed on small screens -->
+      {#if phase === 'playing' && currentHintRevealed}
+        <div class="lg:hidden bg-amber-200 text-slate-950 px-3.5 py-2 border-b border-amber-400 text-xs font-medium flex items-start gap-2">
+          <StickyNote class="w-4 h-4 shrink-0 mt-0.5 text-amber-900" />
+          <span><strong>3AM Note:</strong> {stageHintText}</span>
+        </div>
+      {/if}
+
       <!-- Main Stage Viewport -->
-      <main class="relative flex-1 min-h-[500px] flex flex-col">
-        <!-- Burst Particles Overlay (game-feel) -->
+      <main class="relative flex-1 min-h-[490px] flex flex-col">
+        <!-- Burst Particles Overlay -->
         {#if particles.length > 0}
           <div class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
             {#each particles as p (p.id)}
@@ -476,18 +578,22 @@
           </div>
         {/if}
 
-        <!-- Rubber-Stamp Stage Clear Flash -->
+        <!-- Bottom-Docked Rubber-Stamp Stage Clear Flash (never occludes top stage headers) -->
         {#if clearBanner}
-          <div class="absolute inset-x-0 top-14 z-40 flex justify-center pointer-events-none">
-            <div class="animate-stamp px-5 py-2 rounded-xl border-2 border-emerald-400 bg-emerald-950/95 text-emerald-300 font-display font-extrabold text-lg sm:text-xl shadow-2xl">
+          <div class="absolute inset-x-0 bottom-5 z-40 flex justify-center pointer-events-none">
+            <div class="animate-stamp px-5 py-2 rounded-lg border-2 border-emerald-300 bg-emerald-950/95 text-emerald-200 font-display font-extrabold text-base sm:text-lg shadow-2xl">
               ✓ {clearBanner}
             </div>
           </div>
         {/if}
 
-        <!-- Floating Toast Stack -->
+        <!-- Bottom-Left Floating Toast Stack (never collides with top-right stage badges) -->
         {#if toasts.length > 0}
-          <div class="absolute top-3 right-3 z-50 space-y-2 pointer-events-none max-w-xs">
+          <div
+            role="status"
+            aria-live="polite"
+            class="absolute bottom-3 left-3 z-50 space-y-2 pointer-events-none max-w-xs"
+          >
             {#each toasts as toast (toast.id)}
               <div
                 class="animate-pop-in px-3.5 py-2.5 rounded-xl border shadow-xl text-xs backdrop-blur-md flex items-start gap-2 {toast.kind ===
@@ -495,7 +601,7 @@
                   ? 'bg-rose-950/95 border-rose-500 text-rose-100'
                   : toast.kind === 'clear' || toast.kind === 'achievement'
                     ? 'bg-emerald-950/95 border-emerald-500 text-emerald-100'
-                    : 'bg-slate-900/95 border-slate-700 text-slate-200'}"
+                    : 'bg-slate-900/95 border-slate-700 text-slate-100'}"
               >
                 {#if toast.kind === 'scam'}
                   <AlertOctagon class="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
@@ -504,7 +610,7 @@
                 {/if}
                 <div>
                   <div class="font-bold">{toast.title}</div>
-                  <div class="opacity-85">{toast.detail}</div>
+                  <div class="opacity-90">{toast.detail}</div>
                 </div>
               </div>
             {/each}
@@ -512,56 +618,53 @@
         {/if}
 
         {#if phase === 'intro'}
-          <div class="flex-1 bg-[#0b0e16] p-5 sm:p-9 flex flex-col justify-center relative overflow-hidden">
-            <!-- Hazard top callout -->
-            <div class="max-w-2xl mx-auto w-full space-y-5">
-              <div class="hazard-stripes border border-amber-500/40 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-amber-300 text-xs font-mono-num font-bold">
-                  <BellRing class="w-4 h-4 shrink-0" />
-                  <span>BANK ALERT: 5 FREE TRIALS EXPIRE IN 90.0 SECONDS</span>
+          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-8 flex flex-col justify-center relative overflow-hidden">
+            <div class="max-w-2xl mx-auto w-full space-y-4">
+              <div class="bg-amber-500/10 border border-amber-400/40 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-amber-200 text-xs font-mono-num font-bold">
+                  <BellRing class="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>BANK ALERT: 5 FREE TRIALS AUTO-RENEW IN 90.0s</span>
                 </div>
-                <span class="font-mono-num text-xs font-extrabold text-rose-400">$212.48 AT RISK</span>
+                <span class="font-mono-num text-xs font-extrabold text-rose-300 shrink-0">$212.48 AT RISK</span>
               </div>
 
-              <div class="space-y-2">
-                <h1 class="font-display text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-[1.02]">
+              <div class="space-y-1.5">
+                <h1 class="font-display text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-none">
                   UNSUBSCRIBE
                 </h1>
-                <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
-                  A <strong class="text-white">dark-pattern boss rush</strong>. At 3:14 AM you signed up for 5 sketchy
-                  SaaS free trials. Fight through guilt-trip mascots, Hydra cookie walls, fleeing buttons, and corporate
-                  captchas before your virtual card gets drained.
+                <p class="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-[64ch]">
+                  At 3:14 AM you started <strong class="text-white">5 sketchy SaaS free trials</strong>. Fight through
+                  guilt-trip modals, Hydra cookie walls, fleeing buttons, and corporate captchas before your virtual
+                  debit card gets drained.
                 </p>
               </div>
 
-              <!-- 5 Boss Dossier Grid -->
-              <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+              <!-- Clean Ledger Table of All 5 Pending Auto-Debits (no nested-cards, zero text truncation, fits above 390x844 mobile fold) -->
+              <div class="divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-950/75 overflow-hidden">
                 {#each TRIALS as t, idx (t.id)}
-                  <div class="bg-slate-900/95 border border-slate-800 rounded-xl p-3 flex sm:flex-col justify-between gap-2">
-                    <div class="flex items-center sm:items-start justify-between gap-1.5">
+                  <div class="px-3.5 py-2 flex items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-2.5 min-w-0">
                       <span
-                        class="text-[10px] font-mono-num font-bold px-1.5 py-0.5 rounded text-white"
+                        class="font-mono-num font-bold px-2 py-0.5 rounded text-white shrink-0"
                         style="background: {t.accent};"
                       >
-                        BOSS {idx + 1}
+                        #{idx + 1}
                       </span>
-                      <span class="font-mono-num text-xs font-extrabold text-rose-400">
-                        ${t.renewalCost.toFixed(0)}
-                      </span>
+                      <div class="min-w-0">
+                        <span class="font-display font-bold text-white">{t.brand}</span>
+                        <span class="hidden sm:inline text-slate-300"> — {t.tagline}</span>
+                      </div>
                     </div>
-                    <div>
-                      <div class="font-display font-bold text-xs text-white truncate">{t.brand}</div>
-                      <div class="text-[11px] text-slate-400 leading-tight mt-0.5 line-clamp-2">{t.tagline}</div>
-                    </div>
+                    <span class="font-mono-num font-bold text-rose-300 shrink-0">${t.renewalCost.toFixed(2)}/mo</span>
                   </div>
                 {/each}
               </div>
 
-              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+              <div class="pt-1">
                 <button
                   type="button"
                   onclick={startGame}
-                  class="bait-button flex-1 py-4 px-6 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-display font-extrabold text-base sm:text-lg shadow-[0_10px_30px_rgba(225,29,72,0.45)] flex items-center justify-center gap-2.5 cursor-pointer"
+                  class="w-full min-h-[48px] py-3.5 px-6 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-display font-extrabold text-base sm:text-lg shadow-lg flex items-center justify-center gap-2.5 cursor-pointer"
                 >
                   <Play class="w-5 h-5 fill-current" />
                   <span>START CANCELLING (90.0s)</span>
@@ -582,71 +685,92 @@
             <Stage5OmniSaaS onClear={handleStageClear} onPenalty={handlePenalty} />
           {/if}
         {:else}
-          <!-- Victory / Timeout Thermal Receipt Screen -->
-          <div class="flex-1 bg-[#0b0e16] p-5 sm:p-8 flex items-center justify-center">
+          <!-- Victory / Timeout Serrated Thermal Paper Receipt Screen -->
+          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-8 flex items-center justify-center">
             <div class="w-full max-w-lg space-y-5">
-              <div class="rounded-2xl border p-5 flex items-center justify-between gap-4 {rankInfo.color}">
-                <div>
-                  <div class="flex items-center gap-2 text-xs font-mono-num uppercase opacity-85 mb-1">
-                    <Award class="w-4 h-4" />
-                    <span>{phase === 'victory' ? 'All 5 Trials Terminated' : 'Auto-Renewal Struck'}</span>
+              <!-- Serrated Thermal Paper Statement with Direct Ink Stamp -->
+              <div class="thermal-paper px-5 sm:px-6 py-6 font-mono-num text-xs space-y-3.5">
+                <div class="flex items-start justify-between border-b-2 border-slate-900 pb-3 gap-3">
+                  <div>
+                    <div class="flex items-center gap-1.5 font-extrabold text-sm text-slate-950">
+                      <Receipt class="w-4 h-4 text-slate-800" />
+                      <span>LUMI VIRTUAL BANK • STATEMENT</span>
+                    </div>
+                    <div class="text-xs text-slate-700 mt-0.5">
+                      ACCT •••• 4049 • {formatClock(timeLeft)} REMAINING
+                    </div>
                   </div>
-                  <h2 class="font-display text-2xl font-extrabold tracking-tight">{rankInfo.title}</h2>
-                  <p class="text-xs opacity-90 mt-1 leading-relaxed">{rankInfo.blurb}</p>
-                </div>
-                <div class="animate-stamp shrink-0 w-16 h-16 rounded-2xl border-2 border-current flex items-center justify-center font-display font-extrabold text-3xl">
-                  {rankInfo.grade}
-                </div>
-              </div>
 
-              <div class="bg-[#faf8f2] text-slate-900 rounded-2xl p-5 sm:p-6 shadow-xl font-mono-num text-xs space-y-3">
-                <div class="flex items-center justify-between border-b border-dashed border-slate-300 pb-3">
-                  <div class="flex items-center gap-2 font-bold text-sm">
-                    <Receipt class="w-4 h-4 text-slate-700" />
-                    <span>CARD STATEMENT SUMMARY</span>
+                  <!-- Rubber-Stamped Grade Directly on Paper -->
+                  <div
+                    class="animate-stamp shrink-0 px-3 py-1 border-2 rounded-xs font-display font-extrabold text-xl tracking-tight {rankInfo.stampColor}"
+                  >
+                    {rankInfo.grade}
                   </div>
-                  <span class="text-slate-500">{formatClock(timeLeft)} LEFT</span>
+                </div>
+
+                <div class="bg-slate-200/70 px-3 py-2 border border-slate-300 text-slate-900">
+                  <div class="font-display font-extrabold text-sm">{rankInfo.title}</div>
+                  <div class="text-xs text-slate-700 font-sans mt-0.5 leading-snug">{rankInfo.blurb}</div>
                 </div>
 
                 <div class="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                   {#each TRIALS as t (t.id)}
                     {@const ok = clearedStages.includes(t.id)}
                     <div class="flex items-center justify-between">
-                      <span class={ok ? 'text-slate-600 line-through' : 'text-rose-700 font-bold'}>
+                      <span class={ok ? 'text-slate-700 line-through' : 'text-rose-800 font-bold'}>
                         {t.brand} Trial
                       </span>
-                      <span class={ok ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
-                        {ok ? 'CANCELLED ($0.00)' : `RENEWED ($${t.renewalCost.toFixed(2)})`}
+                      <span class={ok ? 'text-emerald-800 font-bold' : 'text-rose-800 font-bold'}>
+                        {ok ? `CANCELLED (-$${t.renewalCost.toFixed(2)})` : `RENEWED (+$${t.renewalCost.toFixed(2)})`}
                       </span>
                     </div>
                   {/each}
 
-                  {#if charges.filter((c) => !c.id.startsWith('renew-')).length > 0}
-                    <div class="border-t border-dashed border-slate-300 my-2 pt-2 text-[11px] text-slate-500 uppercase">
-                      Dark-Pattern Traps Clicked
+                  {#if scamCharges.filter((c) => !c.id.startsWith('renew-')).length > 0}
+                    <div class="border-t border-dashed border-slate-400 my-2 pt-2 text-xs text-slate-700 font-bold uppercase">
+                      Dark-Pattern Traps Triggered
                     </div>
-                    {#each charges.filter((c) => !c.id.startsWith('renew-')) as c (c.id)}
-                      <div class="flex items-center justify-between text-rose-700">
+                    {#each scamCharges.filter((c) => !c.id.startsWith('renew-')) as c (c.id)}
+                      <div class="flex items-center justify-between text-rose-800">
                         <span class="truncate pr-3">{c.label}</span>
                         <span class="font-bold shrink-0">+${c.amount.toFixed(2)}</span>
                       </div>
                     {/each}
                   {/if}
+
+                  {#if bonusNotes.length > 0}
+                    <div class="border-t border-dashed border-slate-400 my-2 pt-2 text-xs text-emerald-900 font-bold uppercase">
+                      Style Bonuses Earned
+                    </div>
+                    {#each bonusNotes as note}
+                      <div class="flex items-center justify-between text-emerald-800 font-bold">
+                        <span>★ {note}</span>
+                        <span>STYLE</span>
+                      </div>
+                    {/each}
+                  {/if}
                 </div>
 
-                <div class="border-t-2 border-slate-900 pt-3 flex items-center justify-between text-sm font-extrabold">
-                  <span>TOTAL BILLED</span>
-                  <span class={totalWasted === 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                    ${totalWasted.toFixed(2)}
-                  </span>
+                <div class="border-t-2 border-slate-900 pt-3 space-y-1">
+                  <div class="flex items-center justify-between text-xs text-slate-700">
+                    <span>MONTHLY RECURRING SAVED</span>
+                    <span class="font-bold text-emerald-800">${totalSaved.toFixed(2)}/mo</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm font-extrabold text-slate-950">
+                    <span>TOTAL DARK-PATTERN DAMAGE</span>
+                    <span class={totalWasted === 0 ? 'text-emerald-800' : 'text-rose-800'}>
+                      ${totalWasted.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div class="flex flex-col sm:flex-row items-stretch gap-3">
+              <div class="flex flex-col sm:flex-row items-stretch gap-3 pt-1">
                 <button
                   type="button"
                   onclick={copyReceipt}
-                  class="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  class="flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {#if copied}
                     <Check class="w-4 h-4 text-emerald-400" />
@@ -660,10 +784,10 @@
                 <button
                   type="button"
                   onclick={startGame}
-                  class="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-display font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  class="flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-display font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RotateCcw class="w-4 h-4" />
-                  <span>Play Again (Go for S+)</span>
+                  <span>Play Again (Hotkey: R)</span>
                 </button>
               </div>
             </div>
@@ -672,11 +796,11 @@
       </main>
     </div>
 
-    <!-- Right Desktop Sidecar: Arcade Telemetry, Virtual Credit Card, Live Feed & Sticky Note -->
+    <!-- Right Desktop Sidecar: Arcade Telemetry, Virtual Credit Card, Live Feed & Physical Post-it -->
     <aside class="w-full lg:w-80 shrink-0 flex flex-col gap-3">
       <!-- Big Arcade Countdown Module -->
-      <div class="rounded-2xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl">
-        <div class="flex items-center justify-between text-[11px] font-mono-num text-slate-400 mb-1">
+      <div class="rounded-xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl">
+        <div class="flex items-center justify-between text-xs font-mono-num text-slate-300 mb-1">
           <span class="flex items-center gap-1.5">
             <Clock class="w-3.5 h-3.5 text-amber-400" />
             <span>RENEWAL COUNTDOWN</span>
@@ -712,19 +836,19 @@
       </div>
 
       <!-- Virtual Credit Card Widget -->
-      <div class="relative rounded-2xl border border-slate-700/80 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-4 shadow-xl overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-slate-400 mb-3">
-          <span class="font-display font-bold text-slate-200 flex items-center gap-1.5">
+      <div class="relative rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between text-xs text-slate-300 mb-3">
+          <span class="font-display font-bold text-white flex items-center gap-1.5">
             <CreditCard class="w-4 h-4 text-rose-400" />
             <span>LUMI VIRTUAL DEBIT</span>
           </span>
-          <span class="font-mono-num text-[11px]">•••• 4049</span>
+          <span class="font-mono-num text-xs text-slate-300">•••• 4049</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
           <div>
-            <div class="text-[10px] font-mono-num text-slate-400 uppercase">DARK-PATTERN DAMAGE</div>
-            <div class="relative font-mono-num font-extrabold text-xl {totalWasted > 0 ? 'text-rose-400' : 'text-slate-200'}">
+            <div class="text-xs font-mono-num text-slate-300">DAMAGE BILLED</div>
+            <div class="relative font-mono-num font-extrabold text-xl {totalWasted > 0 ? 'text-rose-400' : 'text-slate-100'}">
               ${totalWasted.toFixed(2)}
               {#if floatingBill}
                 <span class="absolute -top-5 left-0 text-xs font-extrabold text-rose-400 animate-float-up pointer-events-none">
@@ -734,7 +858,7 @@
             </div>
           </div>
           <div>
-            <div class="text-[10px] font-mono-num text-slate-400 uppercase">MONTHLY SAVED</div>
+            <div class="text-xs font-mono-num text-slate-300">MONTHLY SAVED</div>
             <div class="font-mono-num font-extrabold text-xl text-emerald-400">
               ${totalSaved.toFixed(2)}
             </div>
@@ -742,53 +866,82 @@
         </div>
       </div>
 
-      <!-- Live Bank SMS / Charge Feed -->
-      <div class="flex-1 min-h-[130px] rounded-2xl border border-slate-800 bg-slate-900/90 p-3.5 flex flex-col">
-        <div class="flex items-center justify-between text-[11px] font-mono-num text-slate-400 pb-2 mb-2 border-b border-slate-800">
+      <!-- Live Bank SMS / Activity Ledger (logs both blocked renewals and penalty charges!) -->
+      <div class="flex-1 min-h-[130px] rounded-xl border border-slate-800 bg-slate-900/95 p-3.5 flex flex-col">
+        <div class="flex items-center justify-between text-xs font-mono-num text-slate-300 pb-2 mb-2 border-b border-slate-800">
           <span class="flex items-center gap-1.5">
             <Flame class="w-3.5 h-3.5 text-rose-400" />
-            <span>LIVE TRANSACTION LOG</span>
+            <span>LIVE CARD LEDGER</span>
           </span>
           <span>{charges.length} EVENTS</span>
         </div>
 
         {#if charges.length === 0}
-          <div class="flex-1 flex items-center justify-center text-center text-xs text-slate-500 py-4">
-            No dark-pattern charges yet. Keep your cursor away from shiny green buttons!
+          <div class="flex-1 flex items-center justify-center text-center text-xs text-slate-300 py-4 leading-relaxed">
+            Card armed. Terminate all 5 trials before 00:00.0 without clicking upsell traps.
           </div>
         {:else}
           <div class="space-y-1.5 overflow-y-auto max-h-36 pr-1 font-mono-num text-xs">
             {#each [...charges].reverse() as c (c.id)}
-              <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-rose-950/40 border border-rose-900/50 text-rose-200">
-                <span class="truncate">{c.label}</span>
-                <span class="font-bold text-rose-400 shrink-0">+${c.amount.toFixed(2)}</span>
-              </div>
+              {#if c.kind === 'saved'}
+                <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-800/60 text-emerald-200">
+                  <span class="truncate">✓ {c.label}</span>
+                  <span class="font-bold text-emerald-300 shrink-0">-${c.amount.toFixed(2)}/mo</span>
+                </div>
+              {:else}
+                <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-rose-950/50 border border-rose-800/60 text-rose-200">
+                  <span class="truncate">✕ {c.label}</span>
+                  <span class="font-bold text-rose-300 shrink-0">+${c.amount.toFixed(2)}</span>
+                </div>
+              {/if}
             {/each}
           </div>
         {/if}
       </div>
 
-      <!-- Diegetic Yellow Sticky Note -->
-      <div class="rounded-2xl bg-amber-200 text-slate-900 p-3.5 shadow-lg border border-amber-300 -rotate-[0.6deg]">
-        <div class="flex items-center gap-1.5 font-display font-extrabold text-xs uppercase tracking-wide text-amber-950 mb-1">
-          <StickyNote class="w-3.5 h-3.5" />
-          <span>3AM STICKY NOTE TO SELF</span>
-        </div>
-        <p class="text-xs text-amber-950/90 leading-snug">
-          {#if phase === 'intro'}
-            "NEVER click big green buttons. Read the tiny gray fine print and watch out for Chad from Customer Success."
-          {:else if stageIdx === 0}
-            "CloudNote+ hides the exit link in the tiny gray footer. Uncheck Boxes #1 and #2 on the survey!"
-          {:else if stageIdx === 1}
-            "Don't click the ×! Open Granular Interest, turn all 3 switches OFF (watch Switch #1 relight!), then drag Chad out of the way."
-          {:else if stageIdx === 2}
-            "Chase the fleeing button 5 times to tire it out — or press Tab + Enter for an instant accessibility speedrun!"
-          {:else if stageIdx === 3}
-            "Pick actual human needs (Sleep, Transparent Pricing, Working Cancel Button), then brake the shuttle in the green zone."
-          {:else}
-            "Scroll the ToS to uncheck all 3 $15 landmines, ignore the fake timeout button, and watch the A/B button swap when typing UNSUBSCRIBE!"
+      <!-- Physical Sharp-Cornered Paper Post-it Note with Progressive Disclosure -->
+      <div class="sticky-note-paper p-3.5 -rotate-1">
+        <div class="flex items-center justify-between gap-1.5 font-display font-extrabold text-xs uppercase tracking-wide text-stone-900 mb-1.5">
+          <span class="flex items-center gap-1.5">
+            <StickyNote class="w-3.5 h-3.5" />
+            <span>3AM STICKY NOTE</span>
+          </span>
+          {#if phase === 'playing'}
+            <span class="font-mono-num text-xs text-stone-700">BOSS {stageIdx + 1}/5</span>
           {/if}
-        </p>
+        </div>
+
+        {#if phase === 'intro'}
+          <p class="text-xs text-stone-900 leading-snug">
+            "Future me: NEVER click shiny green buttons. Inspect the fine print, and press <strong>R</strong> if you need a fast reset."
+          </p>
+        {:else if phase === 'playing'}
+          {#if currentHintRevealed}
+            <p class="text-xs text-stone-900 leading-snug font-medium">
+              "{stageHintText}"
+            </p>
+          {:else}
+            <div class="space-y-2">
+              <p class="text-xs text-stone-800 leading-snug">
+                Spoiler folded so you can solve <strong>{currentTrial.brand}</strong> yourself first.
+              </p>
+              <button
+                type="button"
+                onclick={revealCurrentHint}
+                class="w-full min-h-[44px] px-3 py-2 rounded bg-amber-300/90 hover:bg-amber-400/90 border border-amber-600/40 text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Eye class="w-3.5 h-3.5" />
+                <span>Peek 3AM Spoiler Hint (H)</span>
+              </button>
+            </div>
+          {/if}
+        {:else}
+          <p class="text-xs text-stone-900 leading-snug">
+            {totalWasted === 0
+              ? '"Flawless zero-damage run! Copy the thermal receipt and flex it in Discord."'
+              : `"We lost $${totalWasted.toFixed(2)} to dark patterns. Press R to run it back for the S+ stamp."`}
+          </p>
+        {/if}
       </div>
     </aside>
   </div>

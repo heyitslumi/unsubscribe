@@ -4,8 +4,7 @@
   --font-display: "Bricolage Grotesque", sans-serif;
   --font-sans: "Plus Jakarta Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: dark;
 }
 
@@ -38,44 +37,74 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Emil-design-eng responsive button press */
 button:not(:disabled) {
-  transition: transform 150ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 button:not(:disabled):active {
   transform: scale(0.97);
 }
 
-/* 3:14 AM Panic OS Desktop Wallpaper */
+/* 3:14 AM Desk Surface — clean matte obsidian, zero AI grid lines */
 .desktop-wallpaper {
-  background-color: #070910;
+  background-color: #080a11;
   background-image:
-    radial-gradient(circle at 14% 18%, rgba(225, 29, 72, 0.19), transparent 40%),
-    radial-gradient(circle at 86% 22%, rgba(79, 70, 229, 0.21), transparent 44%),
-    radial-gradient(circle at 52% 88%, rgba(14, 165, 233, 0.14), transparent 46%),
-    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+    radial-gradient(circle at 12% 14%, rgba(30, 41, 59, 0.55), transparent 48%),
+    radial-gradient(circle at 88% 82%, rgba(15, 23, 42, 0.7), transparent 52%);
 }
 
-.hazard-stripes {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(245, 158, 11, 0.18),
-    rgba(245, 158, 11, 0.18) 10px,
-    rgba(15, 23, 42, 0.65) 10px,
-    rgba(15, 23, 42, 0.65) 20px
-  );
+/* Physical Post-it Note */
+.sticky-note-paper {
+  background: #fef08a;
+  color: #1c1917;
+  border-radius: 2px 2px 18px 2px;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    inset 0 18px 0 rgba(250, 204, 21, 0.35);
 }
 
-.scanlines {
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0px,
-    transparent 2px,
-    rgba(255, 255, 255, 0.018) 3px
-  );
+/* Thermal Paper Receipt with Serrated Tear Edge */
+.thermal-paper {
+  background: #faf8f2;
+  color: #0f172a;
+  position: relative;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+.thermal-paper::before,
+.thermal-paper::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-size: 16px 8px;
+}
+
+.thermal-paper::before {
+  top: -8px;
+  background-image: linear-gradient(135deg, transparent 50%, #faf8f2 50%),
+    linear-gradient(225deg, transparent 50%, #faf8f2 50%);
+}
+
+.thermal-paper::after {
+  bottom: -8px;
+  background-image: linear-gradient(45deg, transparent 50%, #faf8f2 50%),
+    linear-gradient(315deg, transparent 50%, #faf8f2 50%);
+}
+
+/* Hide horizontal scrollbar on tab strip */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Custom themed scrollbars */
@@ -99,39 +128,35 @@ button:not(:disabled):active {
 
 @keyframes shake {
   0%, 100% { transform: translate3d(0, 0, 0); }
-  20% { transform: translate3d(-7px, 2px, 0); }
-  40% { transform: translate3d(6px, -2px, 0); }
-  60% { transform: translate3d(-5px, 1px, 0); }
-  80% { transform: translate3d(4px, -1px, 0); }
+  20% { transform: translate3d(-6px, 2px, 0); }
+  40% { transform: translate3d(5px, -2px, 0); }
+  60% { transform: translate3d(-4px, 1px, 0); }
+  80% { transform: translate3d(3px, -1px, 0); }
 }
 
 .animate-shake {
-  animation: shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  animation: shake 0.32s var(--ease-out) both;
 }
 
 @keyframes float-up {
   0% {
     opacity: 1;
-    transform: translateY(0) scale(0.95);
+    transform: translateY(0) scale(0.96);
   }
   100% {
     opacity: 0;
-    transform: translateY(-42px) scale(1.12);
+    transform: translateY(-38px) scale(1.06);
   }
 }
 
 .animate-float-up {
-  animation: float-up 0.9s var(--ease-out) forwards;
+  animation: float-up 0.85s var(--ease-out) forwards;
 }
 
 @keyframes stamp-in {
   0% {
     opacity: 0;
-    transform: scale(1.85) rotate(-15deg);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(0.93) rotate(-5deg);
+    transform: scale(1.45) rotate(-10deg);
   }
   100% {
     opacity: 1;
@@ -140,13 +165,13 @@ button:not(:disabled):active {
 }
 
 .animate-stamp {
-  animation: stamp-in 0.3s var(--ease-back) forwards;
+  animation: stamp-in 0.22s var(--ease-out) forwards;
 }
 
 @keyframes pop-in {
   0% {
     opacity: 0;
-    transform: translateY(8px) scale(0.95);
+    transform: translateY(6px) scale(0.96);
   }
   100% {
     opacity: 1;
@@ -155,27 +180,7 @@ button:not(:disabled):active {
 }
 
 .animate-pop-in {
-  animation: pop-in 0.22s var(--ease-out) forwards;
-}
-
-@keyframes bait-sheen {
-  0% { transform: translateX(-140%) skewX(-20deg); }
-  55%, 100% { transform: translateX(240%) skewX(-20deg); }
-}
-
-.bait-button {
-  position: relative;
-  overflow: hidden;
-}
-
-.bait-button::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: 42%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
-  animation: bait-sheen 2.4s ease-in-out infinite;
-  pointer-events: none;
+  animation: pop-in 0.2s var(--ease-out) forwards;
 }
 
 @keyframes particle-burst {
@@ -185,10 +190,17 @@ button:not(:disabled):active {
   }
   100% {
     opacity: 0;
-    transform: translate(var(--tx), var(--ty)) scale(0.55) rotate(var(--rot));
+    transform: translate(var(--tx), var(--ty)) scale(0.6) rotate(var(--rot));
   }
 }
 
 .animate-particle {
-  animation: particle-burst 0.72s var(--ease-out) forwards;
+  animation: particle-burst 0.68s var(--ease-out) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake,
+  .animate-particle {
+    animation: none !important;
+  }
 }

@@ -13,6 +13,7 @@ export interface TrialInfo {
 
 export interface ChargeEntry {
   id: string;
+  kind: 'scam' | 'saved';
   stageBrand: string;
   label: string;
   amount: number;
