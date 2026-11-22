@@ -578,45 +578,6 @@
           </div>
         {/if}
 
-        <!-- Bottom-Docked Rubber-Stamp Stage Clear Flash (never occludes top stage headers) -->
-        {#if clearBanner}
-          <div class="absolute inset-x-0 bottom-5 z-40 flex justify-center pointer-events-none">
-            <div class="animate-stamp px-5 py-2 rounded-lg border-2 border-emerald-300 bg-emerald-950/95 text-emerald-200 font-display font-extrabold text-base sm:text-lg shadow-2xl">
-              ✓ {clearBanner}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Bottom-Left Floating Toast Stack (never collides with top-right stage badges) -->
-        {#if toasts.length > 0}
-          <div
-            role="status"
-            aria-live="polite"
-            class="absolute bottom-3 left-3 z-50 space-y-2 pointer-events-none max-w-xs"
-          >
-            {#each toasts as toast (toast.id)}
-              <div
-                class="animate-pop-in px-3.5 py-2.5 rounded-xl border shadow-xl text-xs backdrop-blur-md flex items-start gap-2 {toast.kind ===
-                'scam'
-                  ? 'bg-rose-950/95 border-rose-500 text-rose-100'
-                  : toast.kind === 'clear' || toast.kind === 'achievement'
-                    ? 'bg-emerald-950/95 border-emerald-500 text-emerald-100'
-                    : 'bg-slate-900/95 border-slate-700 text-slate-100'}"
-              >
-                {#if toast.kind === 'scam'}
-                  <AlertOctagon class="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                {:else}
-                  <CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                {/if}
-                <div>
-                  <div class="font-bold">{toast.title}</div>
-                  <div class="opacity-90">{toast.detail}</div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-
         {#if phase === 'intro'}
           <div class="flex-1 bg-[#0b0e16] p-4 sm:p-8 flex flex-col justify-center relative overflow-hidden">
             <div class="max-w-2xl mx-auto w-full space-y-4">
@@ -798,6 +759,37 @@
 
     <!-- Right Desktop Sidecar: Arcade Telemetry, Virtual Credit Card, Live Feed & Physical Post-it -->
     <aside class="w-full lg:w-80 shrink-0 flex flex-col gap-3">
+      <!-- Non-Occluding Status Notification Strip (never overlaps the browser stage canvas) -->
+      {#if clearBanner || toasts.length > 0}
+        <div role="status" aria-live="polite" class="space-y-2">
+          {#if clearBanner}
+            <div class="animate-stamp px-3.5 py-2 rounded-lg border-2 border-emerald-400 bg-emerald-950 text-emerald-200 font-display font-extrabold text-xs tracking-wide shadow-lg text-center">
+              ✓ {clearBanner}
+            </div>
+          {/if}
+          {#each toasts.slice(-1) as toast (toast.id)}
+            <div
+              class="animate-pop-in px-3.5 py-2.5 rounded-xl border shadow-lg text-xs flex items-start gap-2 {toast.kind ===
+              'scam'
+                ? 'bg-rose-950 border-rose-500 text-rose-100'
+                : toast.kind === 'clear' || toast.kind === 'achievement'
+                  ? 'bg-emerald-950 border-emerald-500 text-emerald-100'
+                  : 'bg-slate-900 border-slate-700 text-slate-100'}"
+            >
+              {#if toast.kind === 'scam'}
+                <AlertOctagon class="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              {:else}
+                <CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              {/if}
+              <div class="min-w-0">
+                <div class="font-bold truncate">{toast.title}</div>
+                <div class="opacity-90 truncate">{toast.detail}</div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
       <!-- Big Arcade Countdown Module -->
       <div class="rounded-xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl">
         <div class="flex items-center justify-between text-xs font-mono-num text-slate-300 mb-1">
