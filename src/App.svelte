@@ -13,7 +13,6 @@
     Check,
     RotateCcw,
     Receipt,
-    Award,
     Flame,
     Zap,
     Wifi,
@@ -21,9 +20,27 @@
     StickyNote,
     BellRing,
     Eye,
+    Terminal,
+    MessageSquare,
+    Globe,
+    Minus,
+    X,
+    ShieldAlert,
+    Sparkles,
+    Send,
+    FolderOpen,
   } from '@lucide/svelte';
   import { INITIAL_TIME_SEC, TRIALS } from './lib/trials';
-  import type { BurstParticle, ChargeEntry, GamePhase, ToastItem } from './lib/types';
+  import type {
+    BurstParticle,
+    ChargeEntry,
+    ChatBubble,
+    DesktopWindowState,
+    GamePhase,
+    SpamPopup,
+    ToastItem,
+    WindowId,
+  } from './lib/types';
   import { sfx } from './lib/audio';
 
   import Stage1CloudNote from './stages/Stage1CloudNote.svelte';
@@ -45,10 +62,58 @@
   let floatingBill = $state<string | null>(null);
   let clearBanner = $state<string | null>(null);
 
-  // Progressive disclosure for 3AM Sticky Note hints (unmasked on click or after a trap misclick)
+  // Desktop Window Manager State
+  let topZ = $state(30);
+  let activeWin = $state<WindowId>('browser');
+  let windows = $state<Record<WindowId, DesktopWindowState>>({
+    browser: { id: 'browser', title: 'HostileWeb Browser', open: true, minimized: false, z: 20, x: 0, y: 0 },
+    bank: { id: 'bank', title: 'LumiGuard Virtual Debit', open: true, minimized: false, z: 21, x: 0, y: 0 },
+    chat: { id: 'chat', title: 'RetentionCord DM (LIVE)', open: true, minimized: false, z: 22, x: 0, y: 0 },
+    terminal: { id: 'terminal', title: 'root@lumi-pc:~ (kill-cli)', open: false, minimized: false, z: 25, x: 0, y: 0 },
+    sticky: { id: 'sticky', title: '3am_passwords.txt', open: true, minimized: false, z: 23, x: 0, y: 0 },
+  });
+
+  // Draggable floating window tracking
+  let draggingWin = $state<WindowId | null>(null);
+  let dragOrigin = $state({ x: 0, y: 0 });
+
+  // Live RetentionCord DM Messages
+  let chatMessages = $state<ChatBubble[]>([
+    {
+      id: 'm0',
+      sender: 'LumiBank Fraud Bot',
+      handle: '@fraud_shield',
+      avatarBg: 'bg-rose-700',
+      text: 'ALERT: 5 free trials ($212.48/mo) set to auto-debit card •••• 4049 in 90 seconds.',
+      time: '03:14',
+    },
+    {
+      id: 'm1',
+      sender: 'Chad (Retention VP)',
+      handle: '@chad_closes',
+      avatarBg: 'bg-sky-700',
+      text: 'hey bestie! saw you hovering near the cancel settings... dont do anything rash',
+      time: '03:14',
+    },
+  ]);
+  let unreadChat = $state(0);
+
+  // Terminal Shell Command Runner
+  let termInput = $state('');
+  let termLogs = $state<string[]>([
+    'UNSUBSCRIBE OS v3.14-cachyos (tty1)',
+    'Type "help" for emergency anti-dark-pattern commands.',
+  ]);
+  let freezeUsed = $state(false);
+
+  // Intrusive OS Spam Popups
+  let spamPopups = $state<SpamPopup[]>([]);
+  let nextSpamId = $state(1);
+
+  // Progressive disclosure for 3AM Sticky Note hints
   let hintRevealedForStage = $state<Record<number, boolean>>({});
 
-  // Trauma-based camera shake & hitstop (from game-feel skill)
+  // Trauma-based camera shake & hitstop
   let trauma = $state(0);
   let shakeOffset = $state({ x: 0, y: 0, rot: 0 });
   let hitStopUntil = $state(0);
@@ -133,6 +198,147 @@
       blurb: 'Every green button was pressed. Your bank called to ask if you are okay.',
     };
   });
+
+  function focusWindow(id: WindowId) {
+    topZ += 1;
+    activeWin = id;
+    windows[id].open = true;
+    windows[id].minimized = false;
+    windows[id].z = topZ;
+    if (id === 'chat') unreadChat = 0;
+  }
+
+  function toggleWindowDock(id: WindowId) {
+    sfx.playClick();
+    const w = windows[id];
+    if (!w.open || w.minimized) {
+      focusWindow(id);
+    } else if (activeWin === id) {
+      w.minimized = true;
+    } else {
+      focusWindow(id);
+    }
+  }
+
+  function minimizeWindow(id: WindowId) {
+    sfx.playClick();
+    windows[id].minimized = true;
+  }
+
+  function startWinDrag(id: WindowId, e: PointerEvent) {
+    focusWindow(id);
+    draggingWin = id;
+    dragOrigin = { x: e.clientX - windows[id].x, y: e.clientY - windows[id].y };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function moveWinDrag(id: WindowId, e: PointerEvent) {
+    if (draggingWin !== id) return;
+    windows[id].x = Math.max(-420, Math.min(420, e.clientX - dragOrigin.x));
+    windows[id].y = Math.max(-220, Math.min(320, e.clientY - dragOrigin.y));
+  }
+
+  function endWinDrag() {
+    draggingWin = null;
+  }
+
+  function pushChat(sender: string, handle: string, avatarBg: string, text: string) {
+    chatMessages = [
+      ...chatMessages.slice(-7),
+      {
+        id: `${Date.now()}-${Math.random()}`,
+        sender,
+        handle,
+        avatarBg,
+        text,
+        time: '03:14',
+      },
+    ];
+    if (windows.chat.minimized || !windows.chat.open) {
+      unreadChat += 1;
+    }
+  }
+
+  function spawnSpamAd() {
+    if (spamPopups.length >= 2) return;
+    sfx.playSplit();
+    const ads = [
+      {
+        title: 'HOT SINGLE VCs IN YOUR AREA',
+        body: '3 pre-seed investors want to fund your accidental SaaS subscriptions!',
+        cta: 'Accept Term Sheet ($14)',
+        fee: 14.0,
+      },
+      {
+        title: 'SYSTEM WARNING: TOO MUCH SAVING',
+        body: 'Unusual fiscal responsibility detected on card •••• 4049!',
+        cta: 'Pay Convenience Tax ($9)',
+        fee: 9.0,
+      },
+    ];
+    const template = ads[nextSpamId % ads.length];
+    spamPopups = [
+      ...spamPopups,
+      {
+        id: nextSpamId,
+        ...template,
+        x: 16 + ((nextSpamId * 37) % 36),
+        y: 18 + ((nextSpamId * 29) % 34),
+      },
+    ];
+    nextSpamId += 1;
+  }
+
+  function closeSpamAd(id: number) {
+    sfx.playClick();
+    spamPopups = spamPopups.filter((p) => p.id !== id);
+  }
+
+  function runTerminalCmd(e: SubmitEvent) {
+    e.preventDefault();
+    sfx.playClick();
+    const raw = termInput.trim();
+    if (!raw) return;
+    termInput = '';
+    const cmd = raw.toLowerCase();
+    termLogs = [...termLogs, `$ ${raw}`];
+
+    if (cmd === 'help') {
+      termLogs = [
+        ...termLogs,
+        'Commands: status | hint | killallchad | killads | freeze (+8s once) | clear',
+      ];
+    } else if (cmd === 'status') {
+      termLogs = [
+        ...termLogs,
+        `Active Boss: ${currentTrial.brand} ($${currentTrial.renewalCost.toFixed(2)}/mo) | Damage: $${totalWasted.toFixed(2)}`,
+      ];
+    } else if (cmd === 'hint') {
+      revealCurrentHint();
+      termLogs = [...termLogs, `[HINT UNLOCKED]: ${stageHintText}`];
+    } else if (cmd === 'killallchad' || cmd === 'pkill chad') {
+      spamPopups = [];
+      termLogs = [...termLogs, 'Killed 428 tracking daemons & purged popup overlays.'];
+      pushChat('Chad (Retention VP)', '@chad_closes', 'bg-sky-700', 'bro did you just run pkill on my retention popups?? rude');
+    } else if (cmd === 'killads') {
+      spamPopups = [];
+      termLogs = [...termLogs, 'Ad popups terminated.'];
+    } else if (cmd === 'freeze' || cmd === 'overclock') {
+      if (freezeUsed) {
+        termLogs = [...termLogs, 'Error: Bank clock freeze already used this run!'];
+      } else {
+        freezeUsed = true;
+        timeLeft = Math.min(INITIAL_TIME_SEC, timeLeft + 8);
+        termLogs = [...termLogs, 'Injected +8.0s NTP clock skew into LumiBank auto-renew timer!'];
+        pushToast('achievement', 'CLI Clock Skew!', '+8.0s added via terminal');
+        bonusNotes = [...bonusNotes, 'Terminal NTP Clock Skew (+8s)'];
+      }
+    } else if (cmd === 'clear') {
+      termLogs = [];
+    } else {
+      termLogs = [...termLogs, `fish: unknown command "${raw}". Try "help".`];
+    }
+  }
 
   function addTrauma(amount: number) {
     trauma = Math.min(1, trauma + amount);
@@ -233,15 +439,26 @@
     bonusNotes = [];
     toasts = [];
     particles = [];
+    spamPopups = [];
     hintRevealedForStage = {};
+    freezeUsed = false;
     copied = false;
     clearBanner = null;
+    focusWindow('browser');
+    pushChat(
+      'Nimbus (CloudNote+)',
+      '@nimbus_ai',
+      'bg-indigo-700',
+      'please dont delete our 2 untitled grocery lists!! i have a cloud family to feed'
+    );
     phase = 'playing';
   }
 
   function revealCurrentHint() {
     sfx.playClick();
     hintRevealedForStage = { ...hintRevealedForStage, [stageIdx]: true };
+    windows.sticky.open = true;
+    windows.sticky.minimized = false;
   }
 
   function triggerTimeout() {
@@ -255,6 +472,7 @@
       amount: t.renewalCost,
     }));
     charges = [...charges, ...uncancelled];
+    pushChat('LumiBank Fraud Bot', '@fraud_shield', 'bg-rose-700', '00:00.0 REACHED — Auto-renewals processed.');
     phase = 'timeout';
   }
 
@@ -264,7 +482,6 @@
     triggerHitStop(55);
     spawnParticles('scam', `+$${amount.toFixed(2)}`);
 
-    // Automatically reveal the 3AM sticky note hint when a player hits a trap
     hintRevealedForStage = { ...hintRevealedForStage, [stageIdx]: true };
 
     charges = [
@@ -281,6 +498,12 @@
     timeLeft = Math.max(0, timeLeft - timeSec);
     floatingBill = `+$${amount.toFixed(2)}`;
     pushToast('scam', `CARD CHARGED $${amount.toFixed(2)}`, `${label} (-${timeSec}s)`);
+    pushChat(
+      'Chad (Retention VP)',
+      '@chad_closes',
+      'bg-sky-700',
+      `CHA-CHING! +$${amount.toFixed(2)} billed for "${label}"! Q4 bonus secured`
+    );
 
     setTimeout(() => {
       floatingBill = null;
@@ -316,6 +539,16 @@
     } else {
       pushToast('clear', `${currentTrial.brand} Cancelled`, `$${currentTrial.renewalCost.toFixed(2)}/mo dodged`);
     }
+
+    const reactions: Record<number, [string, string, string, string]> = {
+      0: ['Chad (Retention VP)', '@chad_closes', 'bg-sky-700', 'Wait you actually read the 4am triple-negative checkboxes?! Deploying 428 cookie brokers...'],
+      1: ['Pulsey (FitPulse AI)', '@pulsey_coach', 'bg-rose-700', 'YOU MINIMIZED CHAD?! Good luck catching my cancel button on leg day!!'],
+      2: ['VerifyHuman Bot-Shield', '@captcha_corp', 'bg-teal-700', 'Abnormal cancellation velocity detected. Launching corporate buzzword grid.'],
+      3: ['VP of Retention (OmniSaaS)', '@vp_retention', 'bg-amber-700', 'Impressive. Now survive my Enterprise ERP offboarding contract.'],
+      4: ['LumiBank Fraud Bot', '@fraud_shield', 'bg-emerald-700', 'ALL 5 AUTO-DEBITS TERMINATED. Generating thermal statement receipt.'],
+    };
+    const r = reactions[stageIdx];
+    if (r) pushChat(r[0], r[1], r[2], r[3]);
 
     if (stageIdx + 1 >= TRIALS.length) {
       setTimeout(() => {
@@ -357,6 +590,9 @@
     } else if ((e.key === 'h' || e.key === 'H') && phase === 'playing') {
       e.preventDefault();
       revealCurrentHint();
+    } else if (e.key === '`') {
+      e.preventDefault();
+      toggleWindowDock('terminal');
     }
   }
 
@@ -390,20 +626,20 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<!-- 3:14 AM Panic OS Desktop Shell -->
-<div class="min-h-screen w-full desktop-wallpaper text-slate-100 flex flex-col justify-between overflow-x-hidden">
-  <!-- Top OS Status & Arcade Threat Bar -->
-  <header class="w-full bg-slate-950/95 border-b border-slate-800 px-3 sm:px-6 py-1.5 flex items-center justify-between gap-3 z-30">
+<!-- 3:14 AM Interactive Desktop OS Environment -->
+<div class="min-h-screen w-full desktop-wallpaper text-slate-100 flex flex-col justify-between overflow-x-hidden select-none">
+  <!-- Top OS System Bar -->
+  <header class="w-full bg-slate-950/95 border-b border-slate-800 px-3 sm:px-5 py-1.5 flex items-center justify-between gap-3 z-40">
     <div class="flex items-center gap-2.5">
       <span class="px-2.5 py-1 rounded bg-rose-700 text-white font-display font-extrabold text-xs tracking-tight">
         UNSUBSCRIBE OS
       </span>
       <span class="hidden md:inline text-xs text-slate-300 font-mono-num">
-        session: 03:14:09_AM • virtual-card •••• 4049
+        lumi@arch-pc • 03:14:09_AM • card •••• 4049
       </span>
     </div>
 
-    <!-- Full-Width Arcade Countdown Meter -->
+    <!-- Top System Auto-Renew Countdown Bar -->
     <div class="flex-1 max-w-md mx-2 hidden sm:flex items-center gap-2.5">
       <span class="text-xs font-mono-num uppercase text-slate-300 shrink-0">AUTO-RENEW</span>
       <div class="flex-1 h-2.5 bg-slate-900 rounded-full border border-slate-700 overflow-hidden p-0.5">
@@ -416,10 +652,11 @@
           style="width: {timerPct}%;"
         ></div>
       </div>
+      <span class="font-mono-num font-extrabold text-xs text-white shrink-0">{formatClock(timeLeft)}</span>
     </div>
 
-    <div class="flex items-center gap-2 sm:gap-3 text-xs font-mono-num text-slate-200">
-      <div class="hidden sm:flex items-center gap-1.5 text-amber-300">
+    <div class="flex items-center gap-2 text-xs font-mono-num text-slate-200">
+      <div class="hidden sm:flex items-center gap-1 text-amber-300">
         <BatteryWarning class="w-4 h-4" />
         <span>4%</span>
       </div>
@@ -456,14 +693,65 @@
     </div>
   </header>
 
-  <!-- Main Desktop Workspace (Browser + Live Bank Sidecar) -->
-  <div class="flex-1 w-full max-w-[1380px] mx-auto px-2.5 sm:px-5 py-2.5 sm:py-4 flex flex-col lg:flex-row items-stretch gap-4">
-    <!-- Left/Main: Hostile SaaS Browser Window -->
+  <!-- Main Desktop Surface with Desktop Shortcut Icons, App Windows & Floating Terminal/Popups -->
+  <div class="relative flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 py-2.5 flex flex-col lg:flex-row items-stretch gap-3">
+    <!-- Left Desktop Shortcut Column (Authentic OS Desktop Icons on XL screens) -->
+    <div class="hidden xl:flex w-24 shrink-0 flex-col items-center gap-3 pt-2">
+      <button
+        type="button"
+        onclick={() => focusWindow('browser')}
+        class="w-20 p-2 rounded-xl hover:bg-slate-800/70 flex flex-col items-center gap-1 text-center cursor-pointer group"
+      >
+        <div class="w-11 h-11 rounded-xl bg-indigo-700 text-white flex items-center justify-center shadow-md">
+          <Globe class="w-6 h-6" />
+        </div>
+        <span class="text-xs font-medium text-slate-200 leading-tight">Browser.app</span>
+      </button>
+
+      <button
+        type="button"
+        onclick={() => focusWindow('terminal')}
+        class="w-20 p-2 rounded-xl hover:bg-slate-800/70 flex flex-col items-center gap-1 text-center cursor-pointer"
+      >
+        <div class="w-11 h-11 rounded-xl bg-slate-800 border border-emerald-500/50 text-emerald-400 flex items-center justify-center shadow-md">
+          <Terminal class="w-6 h-6" />
+        </div>
+        <span class="text-xs font-medium text-slate-200 leading-tight">kill-cli.sh</span>
+      </button>
+
+      <button
+        type="button"
+        onclick={() => focusWindow('sticky')}
+        class="w-20 p-2 rounded-xl hover:bg-slate-800/70 flex flex-col items-center gap-1 text-center cursor-pointer"
+      >
+        <div class="w-11 h-11 rounded-xl bg-amber-300 text-stone-950 flex items-center justify-center shadow-md">
+          <StickyNote class="w-6 h-6" />
+        </div>
+        <span class="text-xs font-medium text-slate-200 leading-tight">3am_hints.txt</span>
+      </button>
+
+      <button
+        type="button"
+        onclick={spawnSpamAd}
+        class="w-20 p-2 rounded-xl hover:bg-slate-800/70 flex flex-col items-center gap-1 text-center cursor-pointer"
+      >
+        <div class="w-11 h-11 rounded-xl bg-rose-800 text-amber-300 flex items-center justify-center shadow-md">
+          <FolderOpen class="w-6 h-6" />
+        </div>
+        <span class="text-xs font-medium text-slate-200 leading-tight">free_ram.exe</span>
+      </button>
+    </div>
+
+    <!-- Center: HostileWeb Browser Window -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      onpointerdown={() => focusWindow('browser')}
       style="transform: translate3d({shakeOffset.x}px, {shakeOffset.y}px, 0) rotate({shakeOffset.rot}deg);"
-      class="flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden flex flex-col relative"
+      class="flex-1 min-w-0 rounded-xl border {activeWin === 'browser'
+        ? 'border-slate-600'
+        : 'border-slate-800'} bg-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.75)] overflow-hidden flex flex-col relative"
     >
-      <!-- Browser Tab Strip (hidden scrollbar + WCAG contrast) -->
+      <!-- Browser Window Title & Tab Strip -->
       <div class="no-scrollbar bg-[#11141d] border-b border-slate-800 px-3 pt-2 flex items-center gap-1.5 overflow-x-auto">
         <div class="flex items-center gap-1.5 pr-2 shrink-0" aria-hidden="true">
           <span class="w-3 h-3 rounded-full bg-rose-500"></span>
@@ -491,7 +779,7 @@
         {/each}
       </div>
 
-      <!-- Browser URL Bar + Boss Encounter Sub-Banner -->
+      <!-- Browser URL Bar -->
       <div class="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-1.5 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -499,7 +787,8 @@
           aria-label="Reload simulated browser page"
           onclick={() => {
             if (phase === 'playing') {
-              pushToast('hint', 'Tracking Pixels Intensified', 'Use Restart (R) in the top bar if you want a fresh run.');
+              spawnSpamAd();
+              pushToast('hint', 'Pop-Up Blocker Bypassed!', 'Refreshing spawned an adware window!');
             }
           }}
           class="min-w-[44px] min-h-[44px] rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 flex items-center justify-center cursor-pointer"
@@ -527,7 +816,7 @@
           </div>
         {/if}
 
-        <!-- Compact Mobile HUD Pills + Mobile Hint Button (always visible on <1024px) -->
+        <!-- Compact Mobile HUD Pills -->
         <div class="flex lg:hidden items-center gap-1.5 ml-auto">
           <div
             class="px-2.5 py-1.5 rounded-lg border font-mono-num text-xs font-bold flex items-center gap-1 {timeLeft <= 15 &&
@@ -554,7 +843,7 @@
         </div>
       </div>
 
-      <!-- Mobile Sticky Note Banner when revealed on small screens -->
+      <!-- Mobile Sticky Note Banner when revealed -->
       {#if phase === 'playing' && currentHintRevealed}
         <div class="lg:hidden bg-amber-200 text-slate-950 px-3.5 py-2 border-b border-amber-400 text-xs font-medium flex items-start gap-2">
           <StickyNote class="w-4 h-4 shrink-0 mt-0.5 text-amber-900" />
@@ -563,8 +852,7 @@
       {/if}
 
       <!-- Main Stage Viewport -->
-      <main class="relative flex-1 min-h-[490px] flex flex-col">
-        <!-- Burst Particles Overlay -->
+      <main class="relative flex-1 min-h-[480px] flex flex-col">
         {#if particles.length > 0}
           <div class="absolute inset-0 pointer-events-none z-50 overflow-hidden">
             {#each particles as p (p.id)}
@@ -579,7 +867,7 @@
         {/if}
 
         {#if phase === 'intro'}
-          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-8 flex flex-col justify-center relative overflow-hidden">
+          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-7 flex flex-col justify-center relative overflow-hidden">
             <div class="max-w-2xl mx-auto w-full space-y-4">
               <div class="bg-amber-500/10 border border-amber-400/40 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 text-amber-200 text-xs font-mono-num font-bold">
@@ -595,12 +883,13 @@
                 </h1>
                 <p class="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-[64ch]">
                   At 3:14 AM you started <strong class="text-white">5 sketchy SaaS free trials</strong>. Fight through
-                  guilt-trip modals, Hydra cookie walls, fleeing buttons, and corporate captchas before your virtual
-                  debit card gets drained.
+                  guilt-trip modals, Hydra cookie walls, fleeing buttons, and corporate captchas—or open the
+                  <strong class="text-emerald-300">kill-cli.sh terminal (`~`)</strong> from the desktop dock for
+                  emergency hacks.
                 </p>
               </div>
 
-              <!-- Clean Ledger Table of All 5 Pending Auto-Debits (no nested-cards, zero text truncation, fits above 390x844 mobile fold) -->
+              <!-- Clean Ledger Table of All 5 Pending Auto-Debits -->
               <div class="divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-950/75 overflow-hidden">
                 {#each TRIALS as t, idx (t.id)}
                   <div class="px-3.5 py-2 flex items-center justify-between gap-3 text-xs">
@@ -647,9 +936,8 @@
           {/if}
         {:else}
           <!-- Victory / Timeout Serrated Thermal Paper Receipt Screen -->
-          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-8 flex items-center justify-center">
+          <div class="flex-1 bg-[#0b0e16] p-4 sm:p-7 flex items-center justify-center">
             <div class="w-full max-w-lg space-y-5">
-              <!-- Serrated Thermal Paper Statement with Direct Ink Stamp -->
               <div class="thermal-paper px-5 sm:px-6 py-6 font-mono-num text-xs space-y-3.5">
                 <div class="flex items-start justify-between border-b-2 border-slate-900 pb-3 gap-3">
                   <div>
@@ -662,7 +950,6 @@
                     </div>
                   </div>
 
-                  <!-- Rubber-Stamped Grade Directly on Paper -->
                   <div
                     class="animate-stamp shrink-0 px-3 py-1 border-2 rounded-xs font-display font-extrabold text-xl tracking-tight {rankInfo.stampColor}"
                   >
@@ -757,19 +1044,19 @@
       </main>
     </div>
 
-    <!-- Right Desktop Sidecar: Arcade Telemetry, Virtual Credit Card, Live Feed & Physical Post-it -->
-    <aside class="w-full lg:w-80 shrink-0 flex flex-col gap-3">
-      <!-- Non-Occluding Status Notification Strip (never overlaps the browser stage canvas) -->
+    <!-- Right Desktop App Column: Multi-Window OS Stack (Bank App + RetentionCord Live DM + 3AM Post-it) -->
+    <aside class="w-full lg:w-80 shrink-0 flex flex-col gap-2.5">
+      <!-- Non-Occluding Status Notification Strip -->
       {#if clearBanner || toasts.length > 0}
-        <div role="status" aria-live="polite" class="space-y-2">
+        <div role="status" aria-live="polite" class="space-y-1.5">
           {#if clearBanner}
-            <div class="animate-stamp px-3.5 py-2 rounded-lg border-2 border-emerald-400 bg-emerald-950 text-emerald-200 font-display font-extrabold text-xs tracking-wide shadow-lg text-center">
+            <div class="animate-stamp px-3.5 py-1.5 rounded-lg border-2 border-emerald-400 bg-emerald-950 text-emerald-200 font-display font-extrabold text-xs tracking-wide shadow-lg text-center">
               ✓ {clearBanner}
             </div>
           {/if}
           {#each toasts.slice(-1) as toast (toast.id)}
             <div
-              class="animate-pop-in px-3.5 py-2.5 rounded-xl border shadow-lg text-xs flex items-start gap-2 {toast.kind ===
+              class="animate-pop-in px-3 py-2 rounded-xl border shadow-lg text-xs flex items-start gap-2 {toast.kind ===
               'scam'
                 ? 'bg-rose-950 border-rose-500 text-rose-100'
                 : toast.kind === 'clear' || toast.kind === 'achievement'
@@ -790,151 +1077,310 @@
         </div>
       {/if}
 
-      <!-- Big Arcade Countdown Module -->
-      <div class="rounded-xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl">
-        <div class="flex items-center justify-between text-xs font-mono-num text-slate-300 mb-1">
-          <span class="flex items-center gap-1.5">
-            <Clock class="w-3.5 h-3.5 text-amber-400" />
-            <span>RENEWAL COUNTDOWN</span>
-          </span>
-          <span class="text-emerald-400 font-bold">{clearedStages.length}/5 CLEARED</span>
-        </div>
-
-        <div
-          class="font-mono-num font-extrabold text-3xl sm:text-4xl tracking-tight {timeLeft <= 15 && phase === 'playing'
-            ? 'text-rose-400'
-            : timeLeft <= 35 && phase === 'playing'
-              ? 'text-amber-300'
-              : 'text-white'}"
-        >
-          {formatClock(timeLeft)}
-        </div>
-
-        <!-- Stage pips -->
-        <div class="grid grid-cols-5 gap-1.5 mt-3">
-          {#each TRIALS as t (t.id)}
-            {@const done = clearedStages.includes(t.id)}
-            {@const active = phase === 'playing' && stageIdx === t.id}
-            <div
-              class="h-2 rounded-full transition-colors {done
-                ? 'bg-emerald-400'
-                : active
-                  ? 'bg-amber-400'
-                  : 'bg-slate-800'}"
-              title={t.brand}
-            ></div>
-          {/each}
-        </div>
-      </div>
-
-      <!-- Virtual Credit Card Widget -->
-      <div class="relative rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-slate-300 mb-3">
-          <span class="font-display font-bold text-white flex items-center gap-1.5">
-            <CreditCard class="w-4 h-4 text-rose-400" />
-            <span>LUMI VIRTUAL DEBIT</span>
-          </span>
-          <span class="font-mono-num text-xs text-slate-300">•••• 4049</span>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
-          <div>
-            <div class="text-xs font-mono-num text-slate-300">DAMAGE BILLED</div>
-            <div class="relative font-mono-num font-extrabold text-xl {totalWasted > 0 ? 'text-rose-400' : 'text-slate-100'}">
-              ${totalWasted.toFixed(2)}
-              {#if floatingBill}
-                <span class="absolute -top-5 left-0 text-xs font-extrabold text-rose-400 animate-float-up pointer-events-none">
-                  {floatingBill}
-                </span>
-              {/if}
-            </div>
+      <!-- OS Window 2: LumiGuard Virtual Debit & Countdown App -->
+      {#if windows.bank.open && !windows.bank.minimized}
+        <div class="rounded-xl border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+          <div class="bg-slate-950 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-xs">
+            <span class="font-mono-num font-bold text-slate-200 flex items-center gap-1.5">
+              <CreditCard class="w-3.5 h-3.5 text-rose-400" />
+              <span>LumiBank_Guard.app</span>
+            </span>
+            <span class="font-mono-num text-emerald-400 font-bold">{clearedStages.length}/5 KILLED</span>
           </div>
-          <div>
-            <div class="text-xs font-mono-num text-slate-300">MONTHLY SAVED</div>
-            <div class="font-mono-num font-extrabold text-xl text-emerald-400">
-              ${totalSaved.toFixed(2)}
+
+          <div class="p-3.5 space-y-3">
+            <div class="flex items-baseline justify-between">
+              <div>
+                <div class="text-xs font-mono-num text-slate-300">RENEWAL TIMER</div>
+                <div
+                  class="font-mono-num font-extrabold text-2xl sm:text-3xl tracking-tight {timeLeft <= 15 &&
+                  phase === 'playing'
+                    ? 'text-rose-400'
+                    : timeLeft <= 35 && phase === 'playing'
+                      ? 'text-amber-300'
+                      : 'text-white'}"
+                >
+                  {formatClock(timeLeft)}
+                </div>
+              </div>
+
+              <div class="text-right">
+                <div class="text-xs font-mono-num text-slate-300">DAMAGE BILLED</div>
+                <div class="relative font-mono-num font-extrabold text-xl {totalWasted > 0 ? 'text-rose-400' : 'text-emerald-400'}">
+                  ${totalWasted.toFixed(2)}
+                  {#if floatingBill}
+                    <span class="absolute -top-5 right-0 text-xs font-extrabold text-rose-400 animate-float-up pointer-events-none">
+                      {floatingBill}
+                    </span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage pips -->
+            <div class="grid grid-cols-5 gap-1.5">
+              {#each TRIALS as t (t.id)}
+                {@const done = clearedStages.includes(t.id)}
+                {@const active = phase === 'playing' && stageIdx === t.id}
+                <div
+                  class="h-2 rounded-full transition-colors {done
+                    ? 'bg-emerald-400'
+                    : active
+                      ? 'bg-amber-400'
+                      : 'bg-slate-800'}"
+                  title={t.brand}
+                ></div>
+              {/each}
             </div>
           </div>
         </div>
-      </div>
+      {/if}
 
-      <!-- Live Bank SMS / Activity Ledger (logs both blocked renewals and penalty charges!) -->
-      <div class="flex-1 min-h-[130px] rounded-xl border border-slate-800 bg-slate-900/95 p-3.5 flex flex-col">
-        <div class="flex items-center justify-between text-xs font-mono-num text-slate-300 pb-2 mb-2 border-b border-slate-800">
-          <span class="flex items-center gap-1.5">
-            <Flame class="w-3.5 h-3.5 text-rose-400" />
-            <span>LIVE CARD LEDGER</span>
-          </span>
-          <span>{charges.length} EVENTS</span>
-        </div>
-
-        {#if charges.length === 0}
-          <div class="flex-1 flex items-center justify-center text-center text-xs text-slate-300 py-4 leading-relaxed">
-            Card armed. Terminate all 5 trials before 00:00.0 without clicking upsell traps.
+      <!-- OS Window 3: RetentionCord Live DM (Founders & Bots messaging you in real time!) -->
+      {#if windows.chat.open && !windows.chat.minimized}
+        <div class="flex-1 min-h-[160px] rounded-xl border border-slate-700 bg-slate-900 shadow-xl overflow-hidden flex flex-col">
+          <div class="bg-[#181b26] px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-xs">
+            <span class="font-mono-num font-bold text-slate-200 flex items-center gap-1.5">
+              <MessageSquare class="w-3.5 h-3.5 text-indigo-400" />
+              <span>RetentionCord • #dm-lumi</span>
+            </span>
+            <span class="px-1.5 py-0.5 rounded bg-rose-700 text-white font-mono-num text-xs font-bold">
+              LIVE
+            </span>
           </div>
-        {:else}
-          <div class="space-y-1.5 overflow-y-auto max-h-36 pr-1 font-mono-num text-xs">
-            {#each [...charges].reverse() as c (c.id)}
-              {#if c.kind === 'saved'}
-                <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-800/60 text-emerald-200">
-                  <span class="truncate">✓ {c.label}</span>
-                  <span class="font-bold text-emerald-300 shrink-0">-${c.amount.toFixed(2)}/mo</span>
+
+          <div class="p-3 space-y-2 overflow-y-auto max-h-44 flex-1 text-xs">
+            {#each chatMessages.slice(-4) as msg (msg.id)}
+              <div class="flex items-start gap-2 bg-slate-950/70 border border-slate-800/90 rounded-lg p-2">
+                <div class="w-6 h-6 rounded-md {msg.avatarBg} text-white font-display font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                  {msg.sender[0]}
                 </div>
-              {:else}
-                <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-rose-950/50 border border-rose-800/60 text-rose-200">
-                  <span class="truncate">✕ {c.label}</span>
-                  <span class="font-bold text-rose-300 shrink-0">+${c.amount.toFixed(2)}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="font-bold text-slate-200 truncate">{msg.sender}</span>
+                    <span class="font-mono-num text-xs text-slate-400 shrink-0">{msg.time}</span>
+                  </div>
+                  <p class="text-slate-300 leading-snug mt-0.5">{msg.text}</p>
                 </div>
-              {/if}
+              </div>
             {/each}
           </div>
-        {/if}
-      </div>
+        </div>
+      {/if}
 
-      <!-- Physical Sharp-Cornered Paper Post-it Note with Progressive Disclosure -->
-      <div class="sticky-note-paper p-3.5 -rotate-1">
-        <div class="flex items-center justify-between gap-1.5 font-display font-extrabold text-xs uppercase tracking-wide text-stone-900 mb-1.5">
-          <span class="flex items-center gap-1.5">
-            <StickyNote class="w-3.5 h-3.5" />
-            <span>3AM STICKY NOTE</span>
-          </span>
-          {#if phase === 'playing'}
-            <span class="font-mono-num text-xs text-stone-700">BOSS {stageIdx + 1}/5</span>
+      <!-- OS Window 4: Physical Sharp-Cornered Paper Post-it Note -->
+      {#if windows.sticky.open && !windows.sticky.minimized}
+        <div class="sticky-note-paper p-3.5 -rotate-1">
+          <div class="flex items-center justify-between gap-1.5 font-display font-extrabold text-xs uppercase tracking-wide text-stone-900 mb-1.5">
+            <span class="flex items-center gap-1.5">
+              <StickyNote class="w-3.5 h-3.5" />
+              <span>3AM STICKY NOTE</span>
+            </span>
+            {#if phase === 'playing'}
+              <span class="font-mono-num text-xs text-stone-700">BOSS {stageIdx + 1}/5</span>
+            {/if}
+          </div>
+
+          {#if phase === 'intro'}
+            <p class="text-xs text-stone-900 leading-snug">
+              "Future me: NEVER click shiny green buttons. Open <strong>kill-cli.sh (`~`)</strong> in the bottom dock to run <code class="font-mono-num font-bold">freeze</code> for +8s!"
+            </p>
+          {:else if phase === 'playing'}
+            {#if currentHintRevealed}
+              <p class="text-xs text-stone-900 leading-snug font-medium">
+                "{stageHintText}"
+              </p>
+            {:else}
+              <div class="space-y-2">
+                <p class="text-xs text-stone-800 leading-snug">
+                  Spoiler folded so you can solve <strong>{currentTrial.brand}</strong> yourself first.
+                </p>
+                <button
+                  type="button"
+                  onclick={revealCurrentHint}
+                  class="w-full min-h-[44px] px-3 py-2 rounded bg-amber-300/90 hover:bg-amber-400/90 border border-amber-600/40 text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Eye class="w-3.5 h-3.5" />
+                  <span>Peek 3AM Spoiler Hint (H)</span>
+                </button>
+              </div>
+            {/if}
+          {:else}
+            <p class="text-xs text-stone-900 leading-snug">
+              {totalWasted === 0
+                ? '"Flawless zero-damage run! Copy the thermal receipt and flex it in Discord."'
+                : `"We lost $${totalWasted.toFixed(2)} to dark patterns. Press R to run it back for the S+ stamp."`}
+            </p>
           {/if}
         </div>
-
-        {#if phase === 'intro'}
-          <p class="text-xs text-stone-900 leading-snug">
-            "Future me: NEVER click shiny green buttons. Inspect the fine print, and press <strong>R</strong> if you need a fast reset."
-          </p>
-        {:else if phase === 'playing'}
-          {#if currentHintRevealed}
-            <p class="text-xs text-stone-900 leading-snug font-medium">
-              "{stageHintText}"
-            </p>
-          {:else}
-            <div class="space-y-2">
-              <p class="text-xs text-stone-800 leading-snug">
-                Spoiler folded so you can solve <strong>{currentTrial.brand}</strong> yourself first.
-              </p>
-              <button
-                type="button"
-                onclick={revealCurrentHint}
-                class="w-full min-h-[44px] px-3 py-2 rounded bg-amber-300/90 hover:bg-amber-400/90 border border-amber-600/40 text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Eye class="w-3.5 h-3.5" />
-                <span>Peek 3AM Spoiler Hint (H)</span>
-              </button>
-            </div>
-          {/if}
-        {:else}
-          <p class="text-xs text-stone-900 leading-snug">
-            {totalWasted === 0
-              ? '"Flawless zero-damage run! Copy the thermal receipt and flex it in Discord."'
-              : `"We lost $${totalWasted.toFixed(2)} to dark patterns. Press R to run it back for the S+ stamp."`}
-          </p>
-        {/if}
-      </div>
+      {/if}
     </aside>
+
+    <!-- Draggable Floating OS Window: kill-cli.sh Terminal Emulator -->
+    {#if windows.terminal.open && !windows.terminal.minimized}
+      <div
+        style="z-index: {windows.terminal.z}; transform: translate({windows.terminal.x}px, {windows.terminal.y}px);"
+        class="fixed bottom-16 left-4 sm:left-16 w-[340px] sm:w-[420px] rounded-xl border-2 border-emerald-500/70 bg-slate-950/95 shadow-[0_25px_70px_rgba(0,0,0,0.85)] overflow-hidden"
+      >
+        <div
+          role="toolbar"
+          aria-label="Draggable terminal window titlebar"
+          tabindex="0"
+          onpointerdown={(e) => startWinDrag('terminal', e)}
+          onpointermove={(e) => moveWinDrag('terminal', e)}
+          onpointerup={endWinDrag}
+          class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing touch-none"
+        >
+          <div class="flex items-center gap-2 text-xs font-mono-num font-bold text-emerald-400">
+            <Terminal class="w-3.5 h-3.5" />
+            <span>root@lumi-pc:~ (kill-cli.sh)</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Minimize terminal window"
+            onclick={() => minimizeWindow('terminal')}
+            class="min-w-[44px] min-h-[44px] -my-1 -mr-2 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer"
+          >
+            <Minus class="w-4 h-4" />
+          </button>
+        </div>
+
+        <div class="p-3 font-mono-num text-xs space-y-1.5 max-h-44 overflow-y-auto text-slate-200">
+          {#each termLogs as line}
+            <div class={line.startsWith('$') ? 'text-emerald-400 font-bold' : 'text-slate-300'}>{line}</div>
+          {/each}
+        </div>
+
+        <form onsubmit={runTerminalCmd} class="border-t border-slate-800 bg-slate-900/90 px-3 py-1.5 flex items-center gap-2">
+          <span class="font-mono-num text-xs font-bold text-emerald-400">$</span>
+          <input
+            type="text"
+            bind:value={termInput}
+            placeholder="freeze | hint | killallchad | help"
+            aria-label="Terminal command input"
+            class="flex-1 min-h-[36px] bg-transparent text-xs font-mono-num text-white focus:outline-none"
+          />
+          <button
+            type="submit"
+            aria-label="Run command"
+            class="min-w-[44px] min-h-[44px] -my-1 -mr-2 flex items-center justify-center text-emerald-400 hover:text-emerald-300 cursor-pointer"
+          >
+            <Send class="w-3.5 h-3.5" />
+          </button>
+        </form>
+      </div>
+    {/if}
+
+    <!-- Intrusive OS Adware Popups -->
+    {#each spamPopups as sp (sp.id)}
+      <div
+        style="left: {sp.x}%; top: {sp.y}%; z-index: 60;"
+        class="fixed w-72 bg-amber-50 text-slate-950 border-2 border-rose-600 rounded-xl shadow-2xl overflow-hidden animate-pop-in"
+      >
+        <div class="bg-rose-700 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold">
+          <span class="flex items-center gap-1.5 truncate">
+            <Sparkles class="w-3.5 h-3.5 shrink-0" />
+            <span class="truncate">{sp.title}</span>
+          </span>
+          <button
+            type="button"
+            aria-label="Close ad popup"
+            onclick={() => closeSpamAd(sp.id)}
+            class="min-w-[44px] min-h-[44px] -my-1 -mr-2 flex items-center justify-center hover:bg-rose-800 cursor-pointer"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+        <div class="p-3.5 space-y-2.5 text-xs">
+          <p class="text-slate-800 leading-snug">{sp.body}</p>
+          <div class="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onclick={() => closeSpamAd(sp.id)}
+              class="min-h-[44px] px-3 py-2 rounded-lg border border-slate-400 text-slate-800 font-semibold cursor-pointer"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              onclick={() => {
+                handlePenalty(sp.title, sp.fee, 2);
+                closeSpamAd(sp.id);
+              }}
+              class="min-h-[44px] px-3 py-2 rounded-lg bg-rose-700 text-white font-bold cursor-pointer"
+            >
+              {sp.cta}
+            </button>
+          </div>
+        </div>
+      </div>
+    {/each}
   </div>
+
+  <!-- Bottom OS Taskbar / App Dock -->
+  <footer class="w-full bg-slate-950/95 border-t border-slate-800 px-3 sm:px-6 py-1.5 flex items-center justify-between gap-2 z-40">
+    <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <button
+        type="button"
+        onclick={() => toggleWindowDock('browser')}
+        class="min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer shrink-0 {activeWin ===
+          'browser' && !windows.browser.minimized
+          ? 'bg-slate-800 text-white border border-slate-600'
+          : 'bg-slate-900 text-slate-300 hover:bg-slate-800/70 border border-slate-800'}"
+      >
+        <Globe class="w-4 h-4 text-indigo-400" />
+        <span>HostileWeb ({clearedStages.length}/5)</span>
+      </button>
+
+      <button
+        type="button"
+        onclick={() => toggleWindowDock('terminal')}
+        class="min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-mono-num font-bold flex items-center gap-2 cursor-pointer shrink-0 {windows
+          .terminal.open && !windows.terminal.minimized
+          ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/60'
+          : 'bg-slate-900 text-slate-300 hover:bg-slate-800/70 border border-slate-800'}"
+      >
+        <Terminal class="w-4 h-4 text-emerald-400" />
+        <span>kill-cli.sh (`~`)</span>
+        {#if !freezeUsed}
+          <span class="px-1.5 py-0.5 rounded bg-emerald-700 text-white text-xs">+8s READY</span>
+        {/if}
+      </button>
+
+      <button
+        type="button"
+        onclick={() => toggleWindowDock('chat')}
+        class="min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer shrink-0 {windows
+          .chat.open && !windows.chat.minimized
+          ? 'bg-slate-800 text-white border border-slate-600'
+          : 'bg-slate-900 text-slate-300 hover:bg-slate-800/70 border border-slate-800'}"
+      >
+        <MessageSquare class="w-4 h-4 text-sky-400" />
+        <span>RetentionCord</span>
+        {#if unreadChat > 0}
+          <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-mono-num text-xs font-bold">
+            {unreadChat}
+          </span>
+        {/if}
+      </button>
+
+      <button
+        type="button"
+        onclick={() => toggleWindowDock('sticky')}
+        class="min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer shrink-0 {windows
+          .sticky.open && !windows.sticky.minimized
+          ? 'bg-amber-300 text-stone-950 font-bold'
+          : 'bg-slate-900 text-slate-300 hover:bg-slate-800/70 border border-slate-800'}"
+      >
+        <StickyNote class="w-4 h-4" />
+        <span>3AM Notes (H)</span>
+      </button>
+    </div>
+
+    <div class="hidden md:flex items-center gap-3 font-mono-num text-xs text-slate-300 shrink-0">
+      <span>SAVED: <strong class="text-emerald-400">${totalSaved.toFixed(2)}/mo</strong></span>
+      <span>•</span>
+      <span>03:14 AM</span>
+    </div>
+  </footer>
 </div>
