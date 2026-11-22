@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --font-display: "Bricolage Grotesque", sans-serif;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #0b0c10;
+  color: #f4f4f6;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #fbbf24;
+  color: #111318;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom themed scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-7px, 2px, 0); }
+  40% { transform: translate3d(6px, -2px, 0); }
+  60% { transform: translate3d(-5px, 1px, 0); }
+  80% { transform: translate3d(4px, -1px, 0); }
+}
+
+.animate-shake {
+  animation: shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px) scale(1.06);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.7) rotate(-14deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.94) rotate(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-6deg);
+  }
+}
+
+.animate-stamp {
+  animation: stamp-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
